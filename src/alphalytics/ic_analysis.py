@@ -1,7 +1,7 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import spearmanr, stats, ttest_1samp
+from scipy.stats import spearmanr, stats, t, ttest_1samp
 
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
@@ -120,7 +120,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
     # Avoid division by zero
     raic = mean_corr / std_corr if std_corr != 0 else np.nan
     t_stat = mean_corr / (std_corr / np.sqrt(sample_size)) if std_corr != 0 else np.nan
-    p_val = stats.t.sf(np.abs(t_stat), sample_size - 1) * 2 if not np.isnan(t_stat) else np.nan
+    p_val = t(np.abs(t_stat), sample_size - 1) * 2 if not np.isnan(t_stat) else np.nan
     
     ic_skew = stats.skew(ic_series)
     ic_kurtosis = stats.kurtosis(ic_series)
