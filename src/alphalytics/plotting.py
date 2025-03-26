@@ -6,7 +6,11 @@ import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 import quantstats as qs
 from scipy.stats import spearmanr, norm, stats, probplot
-from .performance_metrics import compute_capm
+
+from .performance_metrics import compute_capm, compute_performance_table
+from .ic_analysis import cross_sectional_spearmanr, compute_spearman_stats, factor_decay
+from .quantile_analysis import fwd_quantile_stats
+from .turnover_analysis import compute_quantiles_turnover
 
 # =============== RAW FACTOR DATA ANALYSIS ============== #
 
@@ -44,7 +48,7 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.xticks(rotation=0, ha='center')
 
     # --- Plot 3: Performance Table ---
-    performance_table= compute_performance_table(quantile_returns, periods_per_year)
+    performance_table= compute_performance_table(returns, periods_per_year)
     
     # Format table data as percentages
     table_data = performance_table.map(lambda x: f"{x:.2%}").reset_index()
