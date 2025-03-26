@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 import quantstats as qs
-from scipy.stats import spearmanr, norm, stats, probplot
+from scipy.stats import norm, t, probplot
+
 
 from .performance_metrics import compute_capm, compute_performance_table
 from .ic_analysis import cross_sectional_spearmanr, compute_spearman_stats, factor_decay
