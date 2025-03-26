@@ -78,7 +78,7 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
 
 
 
-def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods_per_year: int = 52) -> None:
+def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 52) -> None:
     """
     Plot various risk metrics for quantile returns.
 
