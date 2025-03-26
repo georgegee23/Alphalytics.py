@@ -1,8 +1,11 @@
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib.gridspec as gridspec
 import quantstats as qs
+from scipy.stats import spearmanr, norm, stats, probplot
 from .performance_metrics import compute_capm
 
 # =============== RAW FACTOR DATA ANALYSIS ============== #
