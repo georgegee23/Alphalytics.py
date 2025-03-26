@@ -77,7 +77,7 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.show()
 
 
-def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods: int = 52) -> None:
+def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods_per_year: int = 52) -> None:
     """
     Plot various risk metrics for quantile returns.
 
@@ -86,7 +86,7 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, 
     quantile_returns : pd.DataFrame
         DataFrame containing returns for different quantiles (columns) with datetime index.
     benchmark : pd.Series, optional
-        Benchmark returns series with matching datetime index. Defaults to None.
+        Benchmark returns series with matching datetime index. If None, defaults to equal-weighted universe.
     periods : int, default 52
         Number of periods per year (e.g., 52 for weekly data, 252 for daily data).
 
@@ -113,7 +113,7 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, 
     ax1.set_xticklabels(ax1.get_xticklabels(), rotation=0)
 
     ax2 = fig.add_subplot(gs[0, 1])
-    qs.stats.volatility(quantile_returns, periods=periods).plot.bar(ax=ax2, title="Volatility", width=0.8, fontsize=font_size)
+    qs.stats.volatility(quantile_returns, periods=periods_per_year).plot.bar(ax=ax2, title="Volatility", width=0.8, fontsize=font_size)
     ax2.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
     ax2.set_xticklabels(ax2.get_xticklabels(), rotation=0)
 
