@@ -77,6 +77,49 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.show()
 
 
+def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataFrame:
+
+    # Validate inputs
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError("quantile_returns must be a pandas DataFrame")
+        
+    if returns.empty:
+        raise ValueError("quantile_returns cannot be empty")
+
+    # Set default benchmark if not provided
+    if benchmark is None:
+        benchmark = returns.mean(axis=1)
+        benchmark.name = "Equal-Weighted Benchmark"
+    elif not isinstance(benchmark, pd.Series):
+        raise TypeError("benchmark must be a pandas Series")
+        
+    # Ensure matching indices
+    if not returns.index.equals(benchmark.index):
+        raise ValueError("quantile_returns and benchmark must have matching indices")
+
+    # Calculate CAPM metrics for each quantile
+    capm_results = []
+    
+    for col in returns.columns:
+        try:
+            beta, alpha = qs.stats.greeks(
+                returns=returns[col],
+                benchmark=benchmark
+            )
+            capm_results.append({
+                "Asset": col,
+                "Beta": beta,
+                "Alpha": alpha
+            })
+        except Exception as e:
+            raise RuntimeError(f"Error calculating CAPM for {col}: {str(e)}")
+
+    # Create formatted DataFrame
+    capm_df = pd.DataFrame(capm_results).set_index("Asset")
+    
+    return capm_df
+
+
 def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods_per_year: int = 52) -> None:
     """
     Plot various risk metrics for quantile returns.
