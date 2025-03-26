@@ -6,6 +6,7 @@ import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 import quantstats as qs
 from scipy.stats import spearmanr, norm, stats, probplot, ttest_1samp
+from alphalytics.performance_metrics import compute_capm
 
 # =============== RAW FACTOR DATA ANALYSIS ============== #
 
