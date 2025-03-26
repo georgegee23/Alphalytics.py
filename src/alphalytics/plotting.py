@@ -76,64 +76,6 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.show()
 
 
-    """
-    Calculate CAPM alpha and beta for quantile portfolios relative to a benchmark.
-    
-    Parameters:
-    -----------
-    quantile_returns : pd.DataFrame
-        DataFrame containing returns for different quantiles (columns) with datetime index
-    benchmark : pd.Series, optional
-        Benchmark returns series with matching datetime index. 
-        Defaults to equal-weighted portfolio of all quantiles.
-        
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame with Beta and Alpha for each quantile
-    """
-    
-    # Validate inputs
-    if not isinstance(quantile_returns, pd.DataFrame):
-        raise TypeError("quantile_returns must be a pandas DataFrame")
-        
-    if quantile_returns.empty:
-        raise ValueError("quantile_returns cannot be empty")
-
-    # Set default benchmark if not provided
-    if benchmark is None:
-        benchmark = quantile_returns.mean(axis=1)
-        benchmark.name = "Equal-Weighted Benchmark"
-    elif not isinstance(benchmark, pd.Series):
-        raise TypeError("benchmark must be a pandas Series")
-        
-    # Ensure matching indices
-    if not quantile_returns.index.equals(benchmark.index):
-        raise ValueError("quantile_returns and benchmark must have matching indices")
-
-    # Calculate CAPM metrics for each quantile
-    capm_results = []
-    
-    for quantile in quantile_returns.columns:
-        try:
-            beta, alpha = qs.stats.greeks(
-                returns=quantile_returns[quantile],
-                benchmark=benchmark
-            )
-            capm_results.append({
-                "Quantile": quantile,
-                "Beta": beta,
-                "Alpha": alpha
-            })
-        except Exception as e:
-            raise RuntimeError(f"Error calculating CAPM for {quantile}: {str(e)}")
-
-    # Create formatted DataFrame
-    capm_df = pd.DataFrame(capm_results).set_index("Quantile")
-    
-    return capm_df
-
-
 def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods: int = 52) -> None:
     """
     Plot various risk metrics for quantile returns.
