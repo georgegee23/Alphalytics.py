@@ -77,48 +77,6 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.show()
 
 
-def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataFrame:
-
-    # Validate inputs
-    if not isinstance(returns, pd.DataFrame):
-        raise TypeError("quantile_returns must be a pandas DataFrame")
-        
-    if returns.empty:
-        raise ValueError("quantile_returns cannot be empty")
-
-    # Set default benchmark if not provided
-    if benchmark is None:
-        benchmark = returns.mean(axis=1)
-        benchmark.name = "Equal-Weighted Benchmark"
-    elif not isinstance(benchmark, pd.Series):
-        raise TypeError("benchmark must be a pandas Series")
-        
-    # Ensure matching indices
-    if not returns.index.equals(benchmark.index):
-        raise ValueError("quantile_returns and benchmark must have matching indices")
-
-    # Calculate CAPM metrics for each quantile
-    capm_results = []
-    
-    for col in returns.columns:
-        try:
-            beta, alpha = qs.stats.greeks(
-                returns=returns[col],
-                benchmark=benchmark
-            )
-            capm_results.append({
-                "Asset": col,
-                "Beta": beta,
-                "Alpha": alpha
-            })
-        except Exception as e:
-            raise RuntimeError(f"Error calculating CAPM for {col}: {str(e)}")
-
-    # Create formatted DataFrame
-    capm_df = pd.DataFrame(capm_results).set_index("Asset")
-    
-    return capm_df
-
 
 def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, periods_per_year: int = 52) -> None:
     """
@@ -165,14 +123,14 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, 
     ax3.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:.1f}"))
     ax3.set_xticklabels(ax3.get_xticklabels(), rotation=0)
 
-    capm_table = compute_capm(quantile_returns, benchmark=benchmark)
-    ax4 = fig.add_subplot(gs[1, 0])
-    capm_table["Beta"].plot.bar(ax=ax4, title="Beta", width=0.8, fontsize=font_size, xlabel="")
-    ax4.set_xticklabels(ax4.get_xticklabels(), rotation=0)
+    # capm_table = compute_capm(quantile_returns, benchmark=benchmark)
+    # ax4 = fig.add_subplot(gs[1, 0])
+    # capm_table["Beta"].plot.bar(ax=ax4, title="Beta", width=0.8, fontsize=font_size, xlabel="")
+    # ax4.set_xticklabels(ax4.get_xticklabels(), rotation=0)
 
-    ax5 = fig.add_subplot(gs[1, 1])
-    capm_table["Alpha"].plot.bar(ax=ax5, title="Alpha", width=0.8, fontsize=font_size, xlabel="")
-    ax5.set_xticklabels(ax5.get_xticklabels(), rotation=0)
+    # ax5 = fig.add_subplot(gs[1, 1])
+    # capm_table["Alpha"].plot.bar(ax=ax5, title="Alpha", width=0.8, fontsize=font_size, xlabel="")
+    # ax5.set_xticklabels(ax5.get_xticklabels(), rotation=0)
 
     ax6 = fig.add_subplot(gs[1, 2])
     qs.stats.tail_ratio(quantile_returns).plot.bar(ax=ax6, title="Tail Ratio", width=0.8, fontsize=font_size)
