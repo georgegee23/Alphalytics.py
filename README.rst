@@ -34,10 +34,10 @@ Alphalytics
 ===========
 
 
-    Add a short description here!
+    A simple package for investment factor analysis. 
 
 
-A longer description of your project goes here...
+One day I will write a full description here...
 
 
 .. _pyscaffold-notes:
