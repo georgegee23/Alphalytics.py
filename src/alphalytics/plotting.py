@@ -6,7 +6,7 @@ import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
 import quantstats as qs
 from scipy.stats import spearmanr, norm, stats, probplot, ttest_1samp
-from alphalytics.performance_metrics import compute_capm
+from .performance_metrics import compute_capm
 
 # =============== RAW FACTOR DATA ANALYSIS ============== #
 
@@ -123,14 +123,14 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark=None, 
     ax3.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:.1f}"))
     ax3.set_xticklabels(ax3.get_xticklabels(), rotation=0)
 
-    # capm_table = compute_capm(quantile_returns, benchmark=benchmark)
-    # ax4 = fig.add_subplot(gs[1, 0])
-    # capm_table["Beta"].plot.bar(ax=ax4, title="Beta", width=0.8, fontsize=font_size, xlabel="")
-    # ax4.set_xticklabels(ax4.get_xticklabels(), rotation=0)
+    capm_table = compute_capm(quantile_returns, benchmark=benchmark)
+    ax4 = fig.add_subplot(gs[1, 0])
+    capm_table["Beta"].plot.bar(ax=ax4, title="Beta", width=0.8, fontsize=font_size, xlabel="")
+    ax4.set_xticklabels(ax4.get_xticklabels(), rotation=0)
 
-    # ax5 = fig.add_subplot(gs[1, 1])
-    # capm_table["Alpha"].plot.bar(ax=ax5, title="Alpha", width=0.8, fontsize=font_size, xlabel="")
-    # ax5.set_xticklabels(ax5.get_xticklabels(), rotation=0)
+    ax5 = fig.add_subplot(gs[1, 1])
+    capm_table["Alpha"].plot.bar(ax=ax5, title="Alpha", width=0.8, fontsize=font_size, xlabel="")
+    ax5.set_xticklabels(ax5.get_xticklabels(), rotation=0)
 
     ax6 = fig.add_subplot(gs[1, 2])
     qs.stats.tail_ratio(quantile_returns).plot.bar(ax=ax6, title="Tail Ratio", width=0.8, fontsize=font_size)
