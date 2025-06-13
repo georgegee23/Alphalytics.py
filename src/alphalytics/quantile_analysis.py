@@ -6,78 +6,59 @@ from scipy.stats import norm, stats, probplot, ttest_1samp
 
 # ============== QUANTILE PERFORMANCE ANALYSIS ============== #
 
-def compute_series_quantiles(series: pd.Series, n_quantiles: int) -> pd.Series:
+def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.DataFrame:
     """
-    Divide non-NaN values in a series into q quantiles.
-    
-    Parameters:
-    -----------
-    series : pd.Series
-        Input data to be divided into quantiles
-    q : int
-        Number of quantiles to compute
-        
-    Returns:
-    --------
-    pd.Series
-        Series with same index as input, where each value is replaced
-        with its quantile rank (1 to q), and NaN values preserved
-    """
-    mask = series.notna()  # Identify non-NaN positions
-    if mask.any():  # If there are any non-NaN values
-        try:
-            # Compute quantiles on non-NaN values
-            ranks = pd.qcut(series[mask], q=n_quantiles, labels=False, duplicates="drop")
-            ranks += 1  # Adjust to start from 1 if desired
+    Convert a DataFrame's values into quantiles.
 
-            # Create result with NaNs, then fill in ranks
-            result = pd.Series(index=series.index, data=np.nan)
-            result[mask] = ranks
-        except ValueError:
-            # Handle case where all non-NaN values are identical
-            default_rank = 1
-            result = pd.Series(index=series.index, data=np.nan)
-            result[mask] = default_rank
-    else:
-        # All values are NaN
-        result = pd.Series(index=series.index, data=np.nan)
-    return result
-
-def to_quantiles(factors: pd.DataFrame, n_quantiles: int) -> pd.DataFrame:
-    """
-    Convert a DataFrame of continuous factor values to quantile rankings.
-    
     Parameters:
     -----------
     factors : pd.DataFrame
-        DataFrame where each row contains factor values to be ranked
-    
+        Input DataFrame with numeric values to be converted into quantiles.
     n_quantiles : int
-        Number of quantile groups to divide values into
-        
+        Number of quantiles to create (must be a positive integer).
+    axis : int, optional (default=0)
+        Axis along which to compute quantiles (0 for columns, 1 for rows).
+
     Returns:
     --------
     pd.DataFrame
-        DataFrame with same shape as input, containing quantile rankings
+        DataFrame with quantile labels. NaN values in the input remain NaN in the output.
+
+    Raises:
+    -------
+    ValueError
+        If n_quantiles is not a positive integer, axis is not 0 or 1, or factors is not a DataFrame.
+    ValueError
+        If the input DataFrame contains non-numeric data or insufficient valid values for quantization.
     """
+    # Input validation
     if not isinstance(factors, pd.DataFrame):
-        raise TypeError("Input must be a pandas DataFrame")
-    
-    if n_quantiles <= 0 or not isinstance(n_quantiles, int):
+        raise ValueError("factors must be a pandas DataFrame")
+    if not isinstance(n_quantiles, int) or n_quantiles <= 0:
         raise ValueError("n_quantiles must be a positive integer")
-        
-    # Create empty DataFrame to store results
-    quantiles_df = pd.DataFrame(
-        index=factors.index,
-        columns=factors.columns,
-        dtype=float
-    )
-    
-    # Process each row (e.g., time period)
-    for idx, row in factors.iterrows():
-        quantiles_df.loc[idx] = compute_series_quantiles(row, n_quantiles)
-    
-    return quantiles_df
+    if axis not in (0, 1):
+        raise ValueError("axis must be 0 (columns) or 1 (rows)")
+
+    # Check if DataFrame contains numeric data
+    if not factors.select_dtypes(include=np.number).columns.tolist():
+        raise ValueError("DataFrame must contain at least one numeric column")
+
+    def compute_quantiles(x):
+        # Skip if all NaN or too few valid values
+        valid_x = x[x.notna()]
+        if len(valid_x) < n_quantiles:
+            return pd.Series(np.nan, index=x.index)
+        try:
+            return pd.qcut(valid_x, q=n_quantiles, labels=False, duplicates="drop") + 1 # add 1 to make quantile labels start from 1
+        except ValueError:
+            # Handle cases where quantization fails (e.g., insufficient unique values)
+            return pd.Series(np.nan, index=x.index)
+
+    # Apply quantile computation along the specified axis
+    quantiles_df = factors.apply(compute_quantiles, axis=axis)
+
+    return quantiles_df[factors.columns]
+
 
 def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame, lag: int) -> pd.DataFrame:
     """
