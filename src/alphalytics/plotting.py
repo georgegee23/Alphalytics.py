@@ -15,12 +15,15 @@ from .turnover_analysis import compute_quantiles_turnover
 
 # =============== RAW FACTOR DATA ANALYSIS ============== #
 
-def plot_factor_data(factor_data: pd.DataFrame) -> None:
+def plot_factor_data(factor_data: pd.DataFrame):
     
     fig, ax = plt.subplots(2, 1, figsize=(10, 6))
     factor_data.mean(axis=1).plot(title="Mean Factor Value & Distribution", ax=ax[0], xlabel="", color="black")
     factor_data.mean(axis=1).hist(ax=ax[1], bins=30, color="skyblue")
-    plt.show()
+
+    return ax
+    
+
 
 
 def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = 252) -> None:
