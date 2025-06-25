@@ -235,7 +235,7 @@ def plot_quantile_correlations(returns: pd.DataFrame, title: str = None) -> None
 def plot_spearman_rank(spearmanr_ts: pd.Series, window: int, ax = None):
 
     data = pd.concat([spearmanr_ts, spearmanr_ts.rolling(window).mean()], axis=1).dropna()
-    data.columns = ["Spearman Correlation", f"{window}-Window Rolling Mean"]
+    data.columns = ["Spearman Correlation", "Rolling Mean"]
 
     # Use provided axis or create new one
     if ax is None:
@@ -258,14 +258,14 @@ def plot_spearman_rank(spearmanr_ts: pd.Series, window: int, ax = None):
 
     # Create a secondary y-axis for the second series
     ax2 = ax1.twinx()
-    ax2.plot(data[f"{window}-Window Rolling Mean"], color='black')
+    ax2.plot(data["Rolling Mean"], color='black')
     ax2.set_ylabel('Rolling IC', color='black')
     ax2.tick_params(axis='y', labelcolor='black')
-    ax2.legend([f"{window}-Window Rolling Mean"], loc='upper right')
+    ax2.legend(["Rolling Mean"], loc='upper right')
 
     # Center the right y-axis around 0
-    data2_max = data[f"{window}-Window Rolling Mean"].max()
-    data2_min = data[f"{window}-Window Rolling Mean"].min()
+    data2_max = data["Rolling Mean"].max()
+    data2_min = data["Rolling Mean"].min()
     data2_abs_max = max(abs(data2_max), abs(data2_min))
     ax2.set_ylim(-data2_abs_max, data2_abs_max)
 
