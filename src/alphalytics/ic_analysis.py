@@ -124,16 +124,16 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
 
     # Wilcoxon Signed-Rank Test
     if sample_size > 0 and not all(ic_series == 0):  # Check for non-zero ICs
-        w_stat, wilcoxon_pval = stats.wilcoxon(ic_series, alternative="two-sided", zero_method="wilcox")
+        w_stat, wilcoxon_pval = wilcoxon(ic_series, alternative="two-sided", zero_method="wilcox")
     else:
         w_stat, wilcoxon_pval = np.nan, np.nan
     
-    ic_skew = stats.skew(ic_series)
-    ic_kurtosis = stats.kurtosis(ic_series)
+    ic_skew = skew(ic_series)
+    ic_kurtosis = kurtosis(ic_series)
 
     n_positive = (ic_series > 0).sum()
     n_total = len(ic_series.dropna())
-    sign_pval = stats.binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
+    sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
     
     #Create dictionary to store results
