@@ -120,29 +120,40 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
     # Avoid division by zero
     raic = mean_corr / std_corr if std_corr != 0 else np.nan
     t_stat = mean_corr / (std_corr / np.sqrt(sample_size)) if std_corr != 0 else np.nan
-    p_val = 2 * (1 - t.cdf(abs(t_stat), sample_size - 1)) if not np.isnan(t_stat) else np.nan
+    t_pval = 2 * (1 - t.cdf(abs(t_stat), sample_size - 1)) if not np.isnan(t_stat) else np.nan
+
+    # Wilcoxon Signed-Rank Test
+    if sample_size > 0 and not all(ic_series == 0):  # Check for non-zero ICs
+        w_stat, wilcoxon_pval = stats.wilcoxon(ic_series, alternative="two-sided", zero_method="wilcox")
+    else:
+        w_stat, wilcoxon_pval = np.nan, np.nan
     
     ic_skew = stats.skew(ic_series)
     ic_kurtosis = stats.kurtosis(ic_series)
+
+    n_positive = (ic_series > 0).sum()
+    n_total = len(ic_series.dropna())
+    sign_pval = stats.binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
     
-    # Create dictionary to store results
+    #Create dictionary to store results
     spearman_stats_dict = {
         "IC Stats": [
             mean_corr, 
             std_corr,
             raic,
-            t_stat,
-            p_val,
             ic_skew,
             ic_kurtosis,
+            t_pval,
+            wilcoxon_pval,
+            sign_pval,
             hit_rate
         ]
     }
 
     # Create DataFrame with statistics
-    col_names = ["Mean", "Std", "RA IC", "T-Stat", "P-Value", "IC Skew", "IC Kurtosis", "Hit Rate"]
-    spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names)
+    col_names = ["Mean", "Std", "RA IC", "IC Skew", "IC Kurtosis", "T Pval", "Wilcoxon Pval", "Sign Pval", "Hit Rate"]
+    spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(4)
     
     return spearman_stats_df
 
