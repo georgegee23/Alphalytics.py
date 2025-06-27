@@ -152,7 +152,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
     }
 
     # Create DataFrame with statistics
-    col_names = ["Mean", "Std", "RA IC", "IC Skew", "IC Kurtosis", "T Pval", "Wilcoxon Pval", "Sign Pval", "Hit Rate"]
+    col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Sign Pval", "Hit Rate"]
     spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(4)
     
     return spearman_stats_df
