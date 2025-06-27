@@ -1,7 +1,7 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import spearmanr, stats, t, ttest_1samp
+from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, kurtosis
 
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
