@@ -87,7 +87,7 @@ def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Ser
 
 def compute_quantiles_turnover(quantiles: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute turnover rates for all quantiles in a DataFrame.
+    Compute turnover rates for all quantiles in a DataFrame, proportion of holdings that changed quantiles.
     
     Parameters:
     - quantiles: DataFrame where each row is a time period, columns are assets,

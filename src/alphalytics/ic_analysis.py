@@ -49,7 +49,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, fact
 
 
 def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, 
-                          factor_lag: int = 0) -> pd.DataFrame:
+                          lag: int = 0) -> pd.DataFrame:
     """
     Compute Spearman rank correlation statistics between lagged factors and returns.
     
@@ -105,7 +105,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
         raise ValueError("Input DataFrames cannot be empty")
     
     # Calculate cross-sectional Spearman rank correlations at each time step
-    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns, factor_lag=factor_lag).dropna()
+    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns, factor_lag=lag).dropna()
     
     if ts_spearmanr_df.empty:
         raise ValueError("No valid data points after computing correlations and removing NaNs")
@@ -160,12 +160,26 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
 
 # ============== FACTOR INFORMATION DECAY ANALYSIS ============== #
 
-def compute_forward_returns(returns:pd.DataFrame, forward_periods:int) -> pd.DataFrame:
+def compute_forward_returns(returns: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
+    """
+    Compute cumulative forward returns over a specified horizon for each asset.
 
-    # Compute cumulative growth and forward returns
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        DataFrame of simple returns (not log returns), indexed by date.
+    forward_periods : int
+        Number of periods ahead to compute the forward return.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of forward returns, aligned with the original index.
+    """
+    # Compute cumulative product of (1 + returns)
     cumulative_growth = (returns + 1).cumprod()
-    # Compute forward returns
-    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1 
+    # Compute cumulative forward returns: (future value / current value) - 1
+    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
 
     return forward_returns
 
