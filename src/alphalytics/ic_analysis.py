@@ -6,7 +6,7 @@ from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, ku
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
 
-def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, factor_lag=0) -> pd.DataFrame:
+def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, lag=0) -> pd.DataFrame:
     """
     Compute cross-sectional Spearman rank correlation between factors and returns over time.
 
@@ -25,7 +25,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, fact
     """
 
     # Shift factors by the specified lag
-    factors = factors.shift(factor_lag)
+    factors = factors.shift(lag)
     # Ensure indices align and preprocess NaN dropping outside the loop
     common_dates = factors.index.intersection(returns.index)
     factors_aligned = factors.loc[common_dates].to_numpy()
@@ -105,7 +105,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
         raise ValueError("Input DataFrames cannot be empty")
     
     # Calculate cross-sectional Spearman rank correlations at each time step
-    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns, factor_lag=lag).dropna()
+    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns, lag=lag).dropna()
     
     if ts_spearmanr_df.empty:
         raise ValueError("No valid data points after computing correlations and removing NaNs")
