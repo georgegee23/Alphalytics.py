@@ -47,7 +47,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> p
     return pd.DataFrame(result, index=common_dates, columns=["SpearmanR", "P-Value"]).dropna()
 
 
-def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
+def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: str = 'greater', round_digits: int = 4) -> pd.DataFrame:
     """
     Compute Spearman rank correlation statistics between factor scores and returns.
     
@@ -65,29 +65,37 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
     returns : pd.DataFrame
         DataFrame containing return values. Each column represents an asset's returns and 
         each row represents a time period. Must have the same index as `factors`.
-        
+
+    alternative : str, optional
+        Defines the alternative hypothesis for statistical tests:
+        - 'two-sided': Tests if mean/median IC != 0.
+        - 'greater': Tests if mean/median IC > 0 (expected positive IC) (default).
+        - 'less': Tests if mean/median IC < 0 (expected negative IC).
+
+    round_digits : int, optional
+        Number of decimal places to round the output statistics to. Default is 4.
     
     Returns
     -------
-    pd.DataFrame or tuple
-        If return_ts is False, returns a DataFrame containing the following statistics:
+    pd.DataFrame
+        DataFrame containing the following statistics:
         - Mean: Average Information Coefficient (IC)
         - Std: Standard deviation of IC
-        - RA IC: Risk-adjusted IC (Mean/Std)
-        - T-test P-Value: Two-sided p-value for IC
-        - Wcx P-Value: P-value from Wilcoxon signed-rank test
-        - IC Skew: Skewness of IC distribution
-        - IC Kurtosis: Kurtosis of IC distribution
+        - RAIC: Risk-adjusted IC (Mean/Std)
+        - Skew: Skewness of IC distribution
+        - Kurtosis: Kurtosis of IC distribution
+        - T Pval: p-value from t-test based on alternative
+        - Wcx Pval: p-value from Wilcoxon signed-rank test based on alternative
         - Hit Rate: Percentage of periods with positive IC
-        - HR P-Value: P-value for hit rate significance greater than 50%
+        - HR Pval: p-value for hit rate based on alternative (greater/less than 50%, or !=)
         
-    Return: Spearman Statistics DataFrame
-    
     Notes
     -----
+    - Assumes concurrent correlation; lag factors externally for predictive analysis to avoid look-ahead bias.
     - The function requires the `cross_sectional_spearmanr` function to calculate 
       correlations at each time step.
     - NaN values in the correlation time series are dropped before statistics are computed.
+    - For inverted factors (expected negative IC), use 'less' alternative or negate factors.
     """
     # Input validation
     if not isinstance(factors, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
@@ -98,6 +106,9 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
         
     if factors.empty or returns.empty:
         raise ValueError("Input DataFrames cannot be empty")
+    
+    if alternative not in ['two-sided', 'greater', 'less']:
+        raise ValueError("alternative must be 'two-sided', 'greater', or 'less'")
     
     # Calculate cross-sectional Spearman rank correlations at each time step
     ts_spearmanr_df = cross_sectional_spearmanr(factors, returns).dropna()
@@ -115,11 +126,21 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
     # Avoid division by zero
     raic = mean_corr / std_corr if std_corr != 0 else np.nan
     t_stat = mean_corr / (std_corr / np.sqrt(sample_size)) if std_corr != 0 else np.nan
-    t_pval = 2 * (1 - t.cdf(abs(t_stat), sample_size - 1)) if not np.isnan(t_stat) else np.nan
+    
+    # Calculate t-test p-value based on alternative
+    if np.isnan(t_stat):
+        t_pval = np.nan
+    else:
+        if alternative == 'two-sided':
+            t_pval = 2 * (1 - t.cdf(abs(t_stat), sample_size - 1))
+        elif alternative == 'greater':
+            t_pval = 1 - t.cdf(t_stat, sample_size - 1)
+        elif alternative == 'less':
+            t_pval = t.cdf(t_stat, sample_size - 1)
 
     # Wilcoxon Signed-Rank Test
     if sample_size > 0 and not all(ic_series == 0):  # Check for non-zero ICs
-        w_stat, wilcoxon_pval = wilcoxon(ic_series, alternative="two-sided", zero_method="wilcox")
+        w_stat, wilcoxon_pval = wilcoxon(ic_series, alternative=alternative, zero_method="wilcox")
     else:
         w_stat, wilcoxon_pval = np.nan, np.nan
     
@@ -128,7 +149,15 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
 
     n_positive = (ic_series > 0).sum()
     n_total = len(ic_series.dropna())
-    sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="greater").pvalue
+    
+    # Adjust binomtest for directional: test p != 0.5 (two-sided), p > 0.5 (greater), p < 0.5 (less)
+    if alternative == 'two-sided':
+        sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
+    elif alternative == 'greater':
+        sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="greater").pvalue
+    elif alternative == 'less':
+        sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="less").pvalue
+    
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
     
     #Create dictionary to store results
@@ -148,7 +177,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
 
     # Create DataFrame with statistics
     col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Hit Rate", "HR Pval"]
-    spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(4)
+    spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(round_digits)
     
     return spearman_stats_df
 
