@@ -6,7 +6,7 @@ from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, ku
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
 
-def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, lag=0) -> pd.DataFrame:
+def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     """
     Compute cross-sectional Spearman rank correlation between factors and returns over time.
 
@@ -24,8 +24,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, lag=
         and 'P-Value' (statistical significance).
     """
 
-    # Shift factors by the specified lag
-    factors = factors.shift(lag)
+
     # Ensure indices align and preprocess NaN dropping outside the loop
     common_dates = factors.index.intersection(returns.index)
     factors_aligned = factors.loc[common_dates].to_numpy()
@@ -48,8 +47,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame, lag=
     return pd.DataFrame(result, index=common_dates, columns=["SpearmanR", "P-Value"]).dropna()
 
 
-def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, 
-                          lag: int = 0) -> pd.DataFrame:
+def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     """
     Compute Spearman rank correlation statistics between lagged factors and returns.
     
@@ -67,9 +65,6 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
     returns : pd.DataFrame
         DataFrame containing return values. Each column represents an asset's returns and 
         each row represents a time period. Must have the same index as `factors`.
-    
-    lag : int, optional
-        Number of periods to lag the factors by. Default is 1.
         
     
     Returns
@@ -89,7 +84,6 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
     
     Notes
     -----
-    - Factors are lagged to ensure predictive calculations avoid look-ahead bias.
     - The function requires the `cross_sectional_spearmanr` function to calculate 
       correlations at each time step.
     - NaN values in the correlation time series are dropped before statistics are computed.
@@ -105,7 +99,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
         raise ValueError("Input DataFrames cannot be empty")
     
     # Calculate cross-sectional Spearman rank correlations at each time step
-    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns, lag=lag).dropna()
+    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns).dropna()
     
     if ts_spearmanr_df.empty:
         raise ValueError("No valid data points after computing correlations and removing NaNs")
@@ -133,7 +127,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
 
     n_positive = (ic_series > 0).sum()
     n_total = len(ic_series.dropna())
-    sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
+    sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="greater").pvalue
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
     
     #Create dictionary to store results
@@ -146,13 +140,13 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame,
             ic_kurtosis,
             t_pval,
             wilcoxon_pval,
-            sign_pval,
-            hit_rate
+            hit_rate,
+            sign_pval
         ]
     }
 
     # Create DataFrame with statistics
-    col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Sign Pval", "Hit Rate"]
+    col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Hit Rate", "HR Pval"]
     spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(4)
     
     return spearman_stats_df
