@@ -49,12 +49,12 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> p
 
 def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute Spearman rank correlation statistics between lagged factors and returns.
+    Compute Spearman rank correlation statistics between factor scores and returns.
     
     This function calculates various statistical measures based on the time-series of 
-    cross-sectional Spearman rank correlations (Information Coefficients) between factors 
+    cross-sectional Spearman rank correlations (Information Coefficients) between factor scores 
     and subsequent returns. These statistics help evaluate the predictive power and 
-    consistency of factors for financial returns.
+    consistency of factor scores for financial returns.
     
     Parameters
     ----------
@@ -75,10 +75,11 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
         - Std: Standard deviation of IC
         - RA IC: Risk-adjusted IC (Mean/Std)
         - T-Stat: T-statistic of IC
-        - P-Value: Two-sided p-value
+        - P-Value: Two-sided p-value for IC
         - IC Skew: Skewness of IC distribution
         - IC Kurtosis: Kurtosis of IC distribution
         - Hit Rate: Percentage of periods with positive IC
+        - HR P-Value: P-value for hit rate significance greater than 50%
         
     Return: Spearman Statistics DataFrame
     
