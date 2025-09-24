@@ -333,12 +333,12 @@ def qqplot_ic(corr_ts: pd.Series, ax=None):
 
 
 def plot_ic_summary(factors: pd.DataFrame, returns: pd.DataFrame, window: int, 
-                    lag: int = 1, periods_label: str = "Days") -> tuple[plt.Figure, np.ndarray]:
+                    periods_label: str = "Days") -> tuple[plt.Figure, np.ndarray]:
     # Calculate Spearman rank correlations
-    spearmanr_ts = cross_sectional_spearmanr(factors, returns, lag=lag)["SpearmanR"]
+    spearmanr_ts = cross_sectional_spearmanr(factors, returns)["SpearmanR"]
     
     # Compute statistics (placeholder function)
-    corr_stats = compute_spearman_stats(factors, returns, lag=lag)
+    corr_stats = compute_spearman_stats(factors, returns)
     
     # Create figure with custom layout
     fig = plt.figure(figsize=(10, 10))
