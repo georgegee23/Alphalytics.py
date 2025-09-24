@@ -53,7 +53,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
     
     This function calculates various statistical measures based on the time-series of 
     cross-sectional Spearman rank correlations (Information Coefficients) between factor scores 
-    and subsequent returns. These statistics help evaluate the predictive power and 
+    and returns. These statistics help evaluate the predictive power and 
     consistency of factor scores for financial returns.
     
     Parameters
@@ -74,8 +74,8 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.D
         - Mean: Average Information Coefficient (IC)
         - Std: Standard deviation of IC
         - RA IC: Risk-adjusted IC (Mean/Std)
-        - T-Stat: T-statistic of IC
-        - P-Value: Two-sided p-value for IC
+        - T-test P-Value: Two-sided p-value for IC
+        - Wcx P-Value: P-value from Wilcoxon signed-rank test
         - IC Skew: Skewness of IC distribution
         - IC Kurtosis: Kurtosis of IC distribution
         - Hit Rate: Percentage of periods with positive IC
