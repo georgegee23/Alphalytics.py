@@ -8,12 +8,12 @@ from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, ku
 
 def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute cross-sectional Spearman rank correlation between factors and returns over time.
+    Compute cross-sectional Spearman rank correlation between asset factors scores and returns over time.
 
     Parameters
     ----------
     factors : pd.DataFrame
-        DataFrame with dates as index and securities as columns, containing factor values.
+        DataFrame with dates as index and securities as columns, containing asset factor values.
     returns : pd.DataFrame
         DataFrame with dates as index and securities as columns, containing return values.
 
@@ -148,7 +148,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alterna
     ic_kurtosis = kurtosis(ic_series)
 
     n_positive = (ic_series > 0).sum()
-    n_total = len(ic_series.dropna())
+    n_total = len(ic_series)
     
     # Adjust binomtest for directional: test p != 0.5 (two-sided), p > 0.5 (greater), p < 0.5 (less)
     if alternative == 'two-sided':
@@ -218,7 +218,7 @@ def factor_decay(factors:pd.DataFrame, returns:pd.DataFrame, max_horizon:int) ->
     p_values = []
     
     for h in range(1, max_horizon + 1):
-        # Compute forward returns for horizon h: sum of log returns from t+1 to t+h
+        # Compute forward returns for horizon h: cumulative returns from t+1 to t+h
         forward_rets = compute_forward_returns(returns, h)
         
         # Compute cross-sectional Spearman correlation at each time t

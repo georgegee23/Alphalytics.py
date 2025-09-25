@@ -4,6 +4,7 @@ import numpy as np
 import quantstats as qs
 
 
+
 # ============== PERFORMANCE METRICS ============== #
 
 def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> pd.DataFrame:
