@@ -16,7 +16,7 @@ finally:
     del version, PackageNotFoundError
 
 
-from .ic_analysis import cross_sectional_spearmanr, compute_spearman_stats, factor_decay
+from .ic_analysis import cs_spearmanr, ts_spearmanr, compute_ic_stats, factor_decay
 from .quantile_analysis import to_quantiles, compute_quantile_returns, get_quantile_holdings, \
     compute_mean_quantile_forward_return, fwd_quantile_stats
 from .turnover_analysis import calculate_autocorrelation, compute_factor_autocorr, compute_quantile_turnover, compute_quantiles_turnover
@@ -26,7 +26,7 @@ from .plotting import plot_factor_data, plot_cumulative_performance, plot_quanti
 from .utils import detect_extreme_outliers
 
 __all__ = [
-    "cross_sectional_spearmanr", "compute_spearman_stats", "factor_decay",
+    "cs_spearmanr", "ts_spearmanr", "compute_ic_stats", "factor_decay",
     "to_quantiles", "compute_quantile_returns", "get_quantile_holdings",
     "compute_mean_quantile_forward_return", "fwd_quantile_stats",
     "calculate_autocorrelation", "compute_factor_autocorr", "compute_quantile_turnover", "compute_quantiles_turnover",

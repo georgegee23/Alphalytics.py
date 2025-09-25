@@ -73,7 +73,7 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
     """
     Compute Spearman rank correlation statistics between factor scores and returns.
     
-    This function calculates various statistical measures based on the time-series of 
+    This function calculates various statistical measures based on the
     cross-sectional Spearman rank correlations (Information Coefficients) between factor scores 
     and returns. These statistics help evaluate the predictive power and 
     consistency of factor scores for financial returns.
@@ -81,7 +81,7 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
     Parameters
     ----------
     factors : pd.DataFrame
-        DataFrame containing factor values. Each column represents a factor and each row
+        DataFrame containing factor values. Each column represents an asset factor value and each row
         represents a time period. The index should be time-based.
     
     returns : pd.DataFrame
@@ -260,8 +260,5 @@ def factor_decay(factors:pd.DataFrame, returns:pd.DataFrame, max_horizon:int) ->
     
     horizons = range(1, max_horizon + 1)
     return pd.DataFrame({'IC': ic_decay, 'p_value': p_values}, index=horizons)
-
-
-
 
  # ============== THE END ============== #     
