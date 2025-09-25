@@ -9,7 +9,7 @@ from scipy.stats import norm, probplot
 
 
 from .performance_metrics import compute_capm, compute_performance_table
-from .ic_analysis import cross_sectional_spearmanr, compute_spearman_stats, factor_decay
+from .ic_analysis import cs_spearmanr, compute_ic_stats, factor_decay
 from .quantile_analysis import fwd_quantile_stats
 from .turnover_analysis import compute_quantiles_turnover
 
@@ -335,10 +335,10 @@ def qqplot_ic(corr_ts: pd.Series, ax=None):
 def plot_ic_summary(factors: pd.DataFrame, returns: pd.DataFrame, window: int, 
                     periods_label: str = "Days") -> tuple[plt.Figure, np.ndarray]:
     # Calculate Spearman rank correlations
-    spearmanr_ts = cross_sectional_spearmanr(factors, returns)["SpearmanR"]
+    spearmanr_ts = cs_spearmanr(factors, returns)
     
     # Compute statistics (placeholder function)
-    corr_stats = compute_spearman_stats(factors, returns)
+    corr_stats = compute_ic_stats(factors, returns)
     
     # Create figure with custom layout
     fig = plt.figure(figsize=(10, 10))

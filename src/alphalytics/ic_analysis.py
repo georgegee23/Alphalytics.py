@@ -46,8 +46,70 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> p
     
     return pd.DataFrame(result, index=common_dates, columns=["SpearmanR", "P-Value"]).dropna()
 
+pythonimport pandas as pd
 
-def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: str = 'greater', round_digits: int = 4) -> pd.DataFrame:
+def cs_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
+    """
+    Compute cross-sectional Spearman rank correlations between factors and returns.
+
+    This function calculates the Spearman rank correlation for each row (date) across
+    columns (assets), measuring the monotonic relationship between factor scores and
+    returns at each time period. Useful for information coefficient (IC) analysis in
+    quantitative finance.
+
+    Parameters
+    ----------
+    factor : pd.DataFrame
+        DataFrame with dates as index and assets as columns, containing factor values.
+    returns : pd.DataFrame
+        DataFrame with dates as index and assets as columns, containing return values.
+        Must have the same shape and index as `factor`.
+
+    Returns
+    -------
+    pd.Series
+        Series of Spearman correlations, indexed by date. NaN for dates with fewer than
+        2 valid (non-NaN) asset pairs.
+
+    Notes
+    -----
+    - Handles NaNs pairwise per date.
+    - Assumes aligned DataFrames; align manually if needed.
+    - For small cross-sections (e.g., few assets), results may be unstable or extreme.
+    """
+    return factor.corrwith(returns, axis=1, method='spearman')
+
+def ts_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
+    """
+    Compute time-series Spearman rank correlations between factors and returns.
+
+    This function calculates the Spearman rank correlation for each column (asset) across
+    rows (dates), measuring the monotonic relationship between an asset's factor scores
+    and its returns over time.
+
+    Parameters
+    ----------
+    factor : pd.DataFrame
+        DataFrame with dates as index and assets as columns, containing factor values.
+    returns : pd.DataFrame
+        DataFrame with dates as index and assets as columns, containing return values.
+        Must have the same shape and index as `factor`.
+
+    Returns
+    -------
+    pd.Series
+        Series of Spearman correlations, indexed by asset. NaN for assets with fewer than
+        2 valid (non-NaN) dates.
+
+    Notes
+    -----
+    - Handles NaNs pairwise per asset.
+    - Assumes aligned DataFrames; align manually if needed.
+    - Useful for asset-specific diagnostics rather than broad factor evaluation.
+    """
+    return factor.corrwith(returns, axis=0, method='spearman')
+
+def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: str = 'greater', round_digits: int = 4) -> pd.DataFrame:
     """
     Compute Spearman rank correlation statistics between factor scores and returns.
     
@@ -92,7 +154,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alterna
     Notes
     -----
     - Assumes concurrent correlation; lag factors externally for predictive analysis to avoid look-ahead bias.
-    - The function requires the `cross_sectional_spearmanr` function to calculate 
+    - The function requires the `cs_spearmanr` function to calculate 
       correlations at each time step.
     - NaN values in the correlation time series are dropped before statistics are computed.
     - For inverted factors (expected negative IC), use 'less' alternative or negate factors.
@@ -111,13 +173,13 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alterna
         raise ValueError("alternative must be 'two-sided', 'greater', or 'less'")
     
     # Calculate cross-sectional Spearman rank correlations at each time step
-    ts_spearmanr_df = cross_sectional_spearmanr(factors, returns).dropna()
+    cs_spearmanr_df = cs_spearmanr(factors, returns).dropna()
     
-    if ts_spearmanr_df.empty:
+    if cs_spearmanr_df.empty:
         raise ValueError("No valid data points after computing correlations and removing NaNs")
 
     # Calculate statistics from the time series of correlations
-    ic_series = ts_spearmanr_df["SpearmanR"]
+    ic_series = cs_spearmanr_df["SpearmanR"]
     sample_size = len(ic_series)
     
     mean_corr = ic_series.mean()
@@ -161,7 +223,7 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alterna
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
     
     #Create dictionary to store results
-    spearman_stats_dict = {
+    ic_stats_dict = {
         "IC Stats": [
             mean_corr, 
             std_corr,
@@ -177,9 +239,9 @@ def compute_spearman_stats(factors: pd.DataFrame, returns: pd.DataFrame, alterna
 
     # Create DataFrame with statistics
     col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Hit Rate", "HR Pval"]
-    spearman_stats_df = pd.DataFrame.from_dict(spearman_stats_dict, orient="index", columns=col_names).round(round_digits)
+    ic_stats_df = pd.DataFrame.from_dict(ic_stats_dict, orient="index", columns=col_names).round(round_digits)
     
-    return spearman_stats_df
+    return ic_stats_df
 
 
 # ============== FACTOR INFORMATION DECAY ANALYSIS ============== #
@@ -222,7 +284,7 @@ def factor_decay(factors:pd.DataFrame, returns:pd.DataFrame, max_horizon:int) ->
         forward_rets = compute_forward_returns(returns, h)
         
         # Compute cross-sectional Spearman correlation at each time t
-        ic_series = factors.corrwith(forward_rets, axis=1, method='spearman')
+        ic_series = cs_spearmanr(factors, forward_rets)
         
         # Drop NaN values
         ic_series = ic_series.dropna()
