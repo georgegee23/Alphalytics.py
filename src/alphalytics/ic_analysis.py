@@ -6,48 +6,6 @@ from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, ku
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
 
-def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute cross-sectional Spearman rank correlation between asset factors scores and returns over time.
-
-    Parameters
-    ----------
-    factors : pd.DataFrame
-        DataFrame with dates as index and securities as columns, containing asset factor values.
-    returns : pd.DataFrame
-        DataFrame with dates as index and securities as columns, containing return values.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with dates as index and columns 'SpearmanR' (correlation coefficient)
-        and 'P-Value' (statistical significance).
-    """
-
-
-    # Ensure indices align and preprocess NaN dropping outside the loop
-    common_dates = factors.index.intersection(returns.index)
-    factors_aligned = factors.loc[common_dates].to_numpy()
-    returns_aligned = returns.loc[common_dates].to_numpy()
-    
-    # Preallocate results array
-    result = np.full((len(common_dates), 2), np.nan)
-    
-    # Loop over rows (dates)
-    for i in range(len(common_dates)):
-        # Get paired data, drop NaNs
-        paired_data = np.vstack((returns_aligned[i], factors_aligned[i])).T
-        mask = ~np.isnan(paired_data).any(axis=1)
-        valid_data = paired_data[mask]
-        
-        if len(valid_data) >= 2:
-            corr, p_value = spearmanr(valid_data[:, 0], valid_data[:, 1])
-            result[i] = [corr, p_value]
-    
-    return pd.DataFrame(result, index=common_dates, columns=["SpearmanR", "P-Value"]).dropna()
-
-import pandas as pd
-
 def cs_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     """
     Compute cross-sectional Spearman rank correlations between factors and returns.
@@ -79,6 +37,7 @@ def cs_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     """
     return factor.corrwith(returns, axis=1, method='spearman')
 
+
 def ts_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     """
     Compute time-series Spearman rank correlations between factors and returns.
@@ -108,6 +67,7 @@ def ts_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     - Useful for asset-specific diagnostics rather than broad factor evaluation.
     """
     return factor.corrwith(returns, axis=0, method='spearman')
+
 
 def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: str = 'greater', round_digits: int = 4) -> pd.DataFrame:
     """
@@ -179,7 +139,7 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
         raise ValueError("No valid data points after computing correlations and removing NaNs")
 
     # Calculate statistics from the time series of correlations
-    ic_series = cs_spearmanr_df["SpearmanR"]
+    ic_series = cs_spearmanr_df
     sample_size = len(ic_series)
     
     mean_corr = ic_series.mean()
