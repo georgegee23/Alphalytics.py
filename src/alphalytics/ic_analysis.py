@@ -46,7 +46,7 @@ def cross_sectional_spearmanr(factors: pd.DataFrame, returns: pd.DataFrame) -> p
     
     return pd.DataFrame(result, index=common_dates, columns=["SpearmanR", "P-Value"]).dropna()
 
-pythonimport pandas as pd
+import pandas as pd
 
 def cs_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
     """
