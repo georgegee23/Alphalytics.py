@@ -72,12 +72,26 @@ def compute_cumulative_growth(returns: pd.DataFrame, init_value: float = 1.0) ->
     
     return cumulative_growth
 
-def compute_forward_returns(returns:pd.DataFrame, forward_periods:int) -> pd.DataFrame:
+def compute_forward_returns(returns: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
+    """
+    Compute cumulative forward returns over a specified horizon for each asset.
 
-    # Compute cumulative growth and forward returns
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        DataFrame of simple returns (not log returns), indexed by date.
+    forward_periods : int
+        Number of periods ahead to compute the forward return.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of forward returns, aligned with the original index.
+    """
+    # Compute cumulative product of (1 + returns)
     cumulative_growth = (returns + 1).cumprod()
-    # Compute forward returns
-    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1 
+    # Compute cumulative forward returns: (future value / current value) - 1
+    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
 
     return forward_returns
 
