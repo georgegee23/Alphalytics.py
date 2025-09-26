@@ -33,5 +33,6 @@ __all__ = [
     "compute_performance_table", "compute_cumulative_growth", "compute_forward_returns", "compute_capm",
     "plot_factor_data", "plot_cumulative_performance", "plot_quantiles_risk_metrics", "plot_quantile_correlations",
     "plot_spearman_rank", "plot_ic_hist", "qqplot_ic", "plot_ic_summary", "plot_factor_decay", "plot_forward_returns",
-    "plot_quantiles_annual_turnover", "detect_extreme_outliers"
+    "plot_quantiles_annual_turnover", 
+    "detect_extreme_outliers", "detect_internal_nan"
 ]
