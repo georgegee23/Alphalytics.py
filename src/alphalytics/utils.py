@@ -57,5 +57,61 @@ def detect_extreme_outliers(df:pd.DataFrame, iqr_multiplier:int=4, threshold_per
     return outlier_columns
 
 
+def detect_internal_nan(df: pd.DataFrame) -> list[str]:
+    """
+    Detect columns in a DataFrame that have internal NaN values.
+
+    An "internal NaN" means the column (treated as a Series) starts and ends with non-NaN values
+    but has at least one NaN in between. This indicates interruptions in the data.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame to check. Each column should be numeric or support NaN checks.
+
+    Returns
+    -------
+    list[str]
+        A list of column names that have internal NaNs.
+
+    Examples
+    --------
+    >>> test_dict = {"A": [0.01, 0.02, 0.03, -0.02, 0.03, 0.05], 
+    ...              "B": [0.03, 0.01, -0.01, np.nan, np.nan, np.nan],
+    ...              "C": [np.nan, np.nan, np.nan, 0.03, -0.01, 0.04],
+    ...              "D": [0.01, np.nan, np.nan, np.nan, 0.05, 0.06],
+    ...              "E": [0.01, np.nan, 0.03, np.nan, 0.05, 0.06]}
+    >>> test_df = pd.DataFrame(test_dict, index=pd.date_range("2023-01-31", periods=6, freq="ME"))
+    >>> detect_internal_nan_columns(test_df)
+    ['D', 'E']
+
+    Notes
+    -----
+    - Assumes the DataFrame columns are Series with at least 3 elements (shorter columns can't have "internal" NaNs).
+    - Uses pd.isna() for NaN detection, which works for float, object, and other dtypes supporting NaNs.
+    - Does not modify the input DataFrame.
+    """
+    
+    def has_internal_nans(s: pd.Series) -> bool:
+        # Helper function to check a single Series for internal NaNs
+        if len(s) < 3:  # Too short to have interruptions "between" values
+            return False
+        
+        has_any_nan = s.isna().any()  # Check for any NaNs at all
+        first_not_nan = not pd.isna(s.iloc[0])  # First value is not NaN
+        last_not_nan = not pd.isna(s.iloc[-1])  # Last value is not NaN
+        
+        # If all conditions are true, NaNs must be internal
+        return has_any_nan and first_not_nan and last_not_nan
+    
+    # List to collect qualifying column names
+    columns_with_internal_nans = []
+    
+    # Iterate over each column and apply the check
+    for col in df.columns:
+        if has_internal_nans(df[col]):
+            columns_with_internal_nans.append(col)
+    
+    return columns_with_internal_nans
 
  # ============== THE END ============== #     
