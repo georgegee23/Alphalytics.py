@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, kurtosis
 
+from alphalytics.performance_metrics import compute_prices
+
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
 
