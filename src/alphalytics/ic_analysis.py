@@ -210,8 +210,9 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
 
 def factor_decay(factor: pd.DataFrame, 
                 returns: pd.DataFrame, 
-                max_lag: int = 24, 
-                step: int = 1) -> dict:
+                max_periods: int = 24, 
+                step: int = 1,
+                alternative="greater") -> dict:
     """
     Analyze how factor predictive power decays over time by computing 
     cross-sectional correlations between factor values and future returns 
@@ -246,7 +247,7 @@ def factor_decay(factor: pd.DataFrame,
     # Input validation
     if not isinstance(factor, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
         raise TypeError("factor and returns must be pandas DataFrames")
-    if max_lag < 1:
+    if max_periods < 1:
         raise ValueError("max_lag must be positive")
     if step < 1:
         raise ValueError("step must be positive")
@@ -256,7 +257,7 @@ def factor_decay(factor: pd.DataFrame,
     decay_results = {}
     
     # Calculate correlations for different lags
-    for lag in range(1, max_lag + 1, step):
+    for lag in range(1, max_periods + 1, step):
         # Get returns over lag period
         df = prices.pct_change(lag, fill_method=None).dropna(how="all")
         
@@ -264,11 +265,12 @@ def factor_decay(factor: pd.DataFrame,
         ic_corrs = cs_spearmanr(df, factor.loc[df.index])
         
         # Test statistical significance
-        t_stat, p_val = ttest_1samp(ic_corrs, 0)
+        t_stat, t_pval = ttest_1samp(ic_corrs, popmean=0, alternative=alternative)
+        w_stat, wilcoxon_pval = wilcoxon(ic_corrs, alternative=alternative, zero_method="wilcox")
         mean_ic_corrs = ic_corrs.mean()
         
-        decay_results[lag] = (mean_ic_corrs, p_val)
+        decay_results[lag] = (mean_ic_corrs, t_pval, wilcoxon_pval)
         
-    return pd.DataFrame(decay_results, index=["IC", "P-Value"]).T
+    return pd.DataFrame(decay_results, index=["IC", "T_PValue", "WCX_PValue"]).T
 
  # ============== THE END ============== #     
