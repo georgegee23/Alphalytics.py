@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import quantstats as qs
 
+from .utils import fill_first_nan  # Import from utils module
+
 
 
 # ============== PERFORMANCE METRICS ============== #
