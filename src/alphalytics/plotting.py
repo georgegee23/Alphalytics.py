@@ -397,7 +397,7 @@ def plot_factor_decay(factor_data:pd.DataFrame, returns:pd.DataFrame, max_horizo
     ax[0].grid(True, linestyle='--', alpha=0.7)
 
     # Plot p-values on the second subplot (ax[1])
-    decay['P-Value'].plot(ax=ax[1], marker='o', linestyle='-', color='black')
+    decay['T_PValue'].plot(ax=ax[1], marker='o', linestyle='-', color='black')
     ax[1].set_title('P-Value of IC', fontsize=14)  # Larger title
     ax[1].set_xlabel(f'Horizon({periods_label})')
     ax[1].set_ylabel('P-Value')
