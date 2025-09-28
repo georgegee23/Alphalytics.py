@@ -114,4 +114,47 @@ def detect_internal_nan(df: pd.DataFrame) -> list[str]:
     
     return columns_with_internal_nans
 
+
+def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
+    """
+    Fill the first NaN value in a time series with a specified value.
+    
+    Parameters
+    ----------
+    series : pd.Series
+        Time series data with datetime index
+    value : float, default 1.0
+        Value to fill the first NaN with
+        
+    Returns
+    -------
+    pd.Series
+        Series with first NaN filled
+        
+    Raises
+    ------
+    TypeError
+        If input is not a pandas Series
+    ValueError
+        If series is empty or has no NaN values
+    """
+    # Input validation
+    if not isinstance(series, pd.Series):
+        raise TypeError("Input must be a pandas Series")
+    
+    if len(series) == 0:
+        raise ValueError("Series is empty")
+        
+    if not series.isna().any():
+        return series
+    
+    # Find first NaN date
+    first_nan_idx = series.index[series.isna()][0]
+    
+    # Create copy to avoid modifying original
+    result = series.copy()
+    result.loc[first_nan_idx] = value
+    
+    return result
+
  # ============== THE END ============== #     

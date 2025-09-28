@@ -7,6 +7,44 @@ import quantstats as qs
 
 # ============== PERFORMANCE METRICS ============== #
 
+def compute_prices(returns: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert returns to prices using cumulative product method.
+    
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        DataFrame of asset returns with dates as index and assets as columns
+        
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of prices, with the first date set to 1.0 and subsequent
+        prices computed via cumulative returns
+        
+    Notes
+    -----
+    - Assumes returns are in decimal form (e.g., 0.01 for 1% return)
+    - First date is set to NaN and then filled with 1.0 to anchor the price series
+    """
+    # Input validation
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError("returns must be a pandas DataFrame")
+    
+    # Compute cumulative returns
+    prices = (returns + 1).cumprod()
+    
+    # Set first date and sort
+    first_date = returns.index.shift(-1)[0]
+    prices.loc[first_date, :] = np.nan
+    prices = prices.sort_index()
+    
+    # Fill first NaN with 1.0 for each column
+    prices = prices.apply(lambda col: fill_first_nan(col, value=1.0))
+    
+    return prices
+
+
 def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> pd.DataFrame:
   
     idxs = {

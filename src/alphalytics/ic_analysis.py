@@ -206,59 +206,67 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
 
 # ============== FACTOR INFORMATION DECAY ANALYSIS ============== #
 
-def compute_forward_returns(returns: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
+def factor_decay(factor: pd.DataFrame, 
+                returns: pd.DataFrame, 
+                max_lag: int = 24, 
+                step: int = 1) -> dict:
     """
-    Compute cumulative forward returns over a specified horizon for each asset.
-
+    Analyze how factor predictive power decays over time by computing 
+    cross-sectional correlations between factor values and future returns 
+    at different lags.
+    
     Parameters
     ----------
+    factor : pd.DataFrame
+        Factor values with dates as index and assets as columns
     returns : pd.DataFrame
-        DataFrame of simple returns (not log returns), indexed by date.
-    forward_periods : int
-        Number of periods ahead to compute the forward return.
-
+        Asset returns with dates as index and assets as columns
+    max_lag : int, default=24
+        Maximum number of periods to look ahead
+    step : int, default=1
+        Step size between lags
+        
     Returns
     -------
-    pd.DataFrame
-        DataFrame of forward returns, aligned with the original index.
+    dict
+        Dictionary with lags as keys and tuples of (correlation, p-value) as values.
+        Correlation is the mean cross-sectional Spearman correlation between
+        factor and returns at that lag. P-value is from t-test of correlation
+        significance.
+        
+    Notes
+    -----
+    - Converts returns to prices using compute_prices()
+    - For each lag, calculates returns over that period
+    - Computes cross-sectional Spearman correlation between factor and lagged returns
+    - Tests statistical significance using t-test
     """
-    # Compute cumulative product of (1 + returns)
-    cumulative_growth = (returns + 1).cumprod()
-    # Compute cumulative forward returns: (future value / current value) - 1
-    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
-
-    return forward_returns
-
-
-def factor_decay(factors:pd.DataFrame, returns:pd.DataFrame, max_horizon:int) -> pd.DataFrame:
-
-    # Validate inputs
-    assert factors.shape == returns.shape, "Factors and returns must have same dimensions"
-    assert max_horizon > 0, "max_horizon must be positive"
-
-    ic_decay = []
-    p_values = []
+    # Input validation
+    if not isinstance(factor, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
+        raise TypeError("factor and returns must be pandas DataFrames")
+    if max_lag < 1:
+        raise ValueError("max_lag must be positive")
+    if step < 1:
+        raise ValueError("step must be positive")
+        
+    # Convert returns to prices
+    prices = compute_prices(returns)
+    decay_results = {}
     
-    for h in range(1, max_horizon + 1):
-        # Compute forward returns for horizon h: cumulative returns from t+1 to t+h
-        forward_rets = compute_forward_returns(returns, h)
+    # Calculate correlations for different lags
+    for lag in range(1, max_lag + 1, step):
+        # Get returns over lag period
+        df = prices.pct_change(lag, fill_method=None).dropna(how="all")
         
-        # Compute cross-sectional Spearman correlation at each time t
-        ic_series = cs_spearmanr(factors, forward_rets)
+        # Calculate cross-sectional correlations
+        ic_corrs = cs_spearmanr(df, factor.loc[df.index])
         
-        # Drop NaN values
-        ic_series = ic_series.dropna()
+        # Test statistical significance
+        t_stat, p_val = ttest_1samp(ic_corrs, 0)
+        mean_ic_corrs = ic_corrs.mean()
         
-        if len(ic_series) > 1:
-            mean_ic = ic_series.mean()
-            t_stat, p_val = ttest_1samp(ic_series, 0)
-            ic_decay.append(mean_ic)
-            p_values.append(p_val)
-        else:
-            ic_decay.append(np.nan)
-            p_values.append(np.nan)
-    
-    horizons = range(1, max_horizon + 1)
-    return pd.DataFrame({'IC': ic_decay, 'p_value': p_values}, index=horizons)
+        decay_results[lag] = (mean_ic_corrs, p_val)
+        
+    return decay_results
 
  # ============== THE END ============== #     
