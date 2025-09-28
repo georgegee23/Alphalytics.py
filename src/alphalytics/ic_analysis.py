@@ -269,6 +269,6 @@ def factor_decay(factor: pd.DataFrame,
         
         decay_results[lag] = (mean_ic_corrs, p_val)
         
-    return decay_results
+    return pd.DataFrame(decay_results, index=["IC", "P-Value"]).T
 
  # ============== THE END ============== #     
