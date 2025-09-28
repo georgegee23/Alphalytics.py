@@ -177,3 +177,10 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataF
 
 
  # ============== THE END ============== #     
+
+
+ __all__ = [
+    "compute_prices", 
+    "compute_performance_table", "compute_cumulative_growth",
+    "compute_forward_returns", "compute_capm"
+ ]

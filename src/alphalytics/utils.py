@@ -157,4 +157,9 @@ def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
     
     return result
 
- # ============== THE END ============== #     
+ # ============== THE END ============== #
+ # 
+ # # Make sure to export the function
+__all__ = ["detect_extreme_outliers", 
+           "detect_internal_nan", 
+           "fill_first_nan"]     
