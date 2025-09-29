@@ -25,7 +25,6 @@ def plot_factor_data(factor_data: pd.DataFrame):
     
 
 
-
 def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = 252) -> None:
     
     font_size, width = 10, 0.8
@@ -285,7 +284,6 @@ def plot_ic_hist(corr_ts:pd.Series, ax = None):
     else:
         ax = ax
 
-
     corr_ts.hist(bins=30, density=True, alpha=0.6, color='skyblue', label='IC Histogram', ax=ax)
 
     # Fit a normal distribution to the data and plot the curve
@@ -403,6 +401,9 @@ def plot_factor_decay(factor_data:pd.DataFrame, returns:pd.DataFrame, max_horizo
     ax[1].set_ylabel('P-Value')
     ax[1].tick_params(axis='x', rotation=45)  # Rotate x-axis labels
     ax[1].grid(True, linestyle='--', alpha=0.7)
+
+    # Add a horizontal line at y=0 for IC
+    ax[0].axhline(y=0.0, color='red', linestyle='--', alpha=0.5, label='Axial 0')
 
     # Add a horizontal line at p=0.05 for significance
     ax[1].axhline(y=0.05, color='gray', linestyle='--', alpha=0.5, label='p=0.05')
