@@ -56,6 +56,7 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
 
     # Apply quantile computation along the specified axis
     quantiles_df = factors.apply(compute_quantiles, axis=axis)
+    quantiles_df.index.freq = factors.index.freq
 
     return quantiles_df[factors.columns]
 
@@ -94,6 +95,8 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
 
     # Rename columns to "Q1", "Q2", etc.
     quantile_returns.columns = [f"Q{int(col)}" for col in quantile_returns.columns]
+
+    quantile_returns.index.freq = quantile_returns.index.freq  # Preserve frequency
 
     # Drop rows where all values are NaN (e.g., initial lagged periods)
     return quantile_returns.dropna(how="all")
