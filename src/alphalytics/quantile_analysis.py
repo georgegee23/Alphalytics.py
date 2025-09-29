@@ -96,7 +96,7 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
     # Rename columns to "Q1", "Q2", etc.
     quantile_returns.columns = [f"Q{int(col)}" for col in quantile_returns.columns]
 
-    quantile_returns.index.freq = quantile_returns.index.freq  # Preserve frequency
+    quantile_returns.index.freq = returns.index.freq  # Preserve frequency
 
     # Drop rows where all values are NaN (e.g., initial lagged periods)
     return quantile_returns.dropna(how="all")
