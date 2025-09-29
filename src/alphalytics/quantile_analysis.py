@@ -56,9 +56,11 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
 
     # Apply quantile computation along the specified axis
     quantiles_df = factors.apply(compute_quantiles, axis=axis)
-    quantiles_df.index.freq = factors.index.freq
 
-    return quantiles_df[factors.columns]
+    quantiles = quantiles_df[factors.columns]
+    # quantiles.index.freq = factors.index.freq
+
+    return quantiles
 
 
 def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
