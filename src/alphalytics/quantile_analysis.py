@@ -60,7 +60,7 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
     return quantiles_df[factors.columns]
 
 
-def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame, lag: int) -> pd.DataFrame:
+def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate the average returns for each quantile based on lagged quantile assignments.
 
@@ -70,8 +70,6 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame, lag
         DataFrame with quantile assignments (integers starting from 1).
     returns : pd.DataFrame
         DataFrame with returns, same shape as quantiles.
-    lag : int
-        Number of periods to lag the quantile assignments.
 
     Returns:
     --------
@@ -83,14 +81,9 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame, lag
         raise ValueError("quantiles and returns must be pandas DataFrames")
     if not quantiles.index.equals(returns.index) or not quantiles.columns.equals(returns.columns):
         raise ValueError("quantiles and returns must have the same index and columns")
-    if not isinstance(lag, int) or lag < 0:
-        raise ValueError("lag must be a non-negative integer")
-
-    # Shift quantiles by the specified lag
-    quantiles_lagged = quantiles.shift(lag)
 
     # Stack the DataFrames into Series
-    quantiles_stacked = quantiles_lagged.stack()
+    quantiles_stacked = quantiles.stack()
     returns_stacked = returns.stack()
 
     # Create a DataFrame with quantile and return columns
