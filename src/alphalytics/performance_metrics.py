@@ -43,6 +43,7 @@ def compute_prices(returns: pd.DataFrame) -> pd.DataFrame:
     
     # Fill first NaN with 1.0 for each column
     prices = prices.apply(lambda col: fill_first_nan(col, value=1.0))
+    prices.index.freq = returns.index.freq # Preserve frequency
     
     return prices
 
