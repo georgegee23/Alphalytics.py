@@ -9,7 +9,7 @@ import numpy as np
 def detect_extreme_outliers(df:pd.DataFrame, iqr_multiplier:int=4, threshold_percentage=0.10) -> list:
 
     """
-    Detects columns with extreme outliers in a pandas DataFrame.
+    Detects columns that contain extreme outliers relative the column's values.
     
     Parameters:
     -----------
