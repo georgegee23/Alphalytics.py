@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, kurtosis
 
-from alphalytics.performance_metrics import compute_prices
+from alphalytics.performance_metrics import cumgrowth
 
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
@@ -253,7 +253,7 @@ def factor_decay(factor: pd.DataFrame,
         raise ValueError("step must be positive")
         
     # Convert returns to prices
-    prices = compute_prices(returns)
+    prices = cumgrowth(returns)
     decay_results = {}
     
     # Calculate correlations for different lags

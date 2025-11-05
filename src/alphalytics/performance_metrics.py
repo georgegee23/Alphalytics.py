@@ -9,43 +9,46 @@ from .utils import fill_first_nan  # Import from utils module
 
 # ============== PERFORMANCE METRICS ============== #
 
-def compute_prices(returns: pd.DataFrame) -> pd.DataFrame:
+def cumgrowth(returns: pd.DataFrame) -> pd.DataFrame:
+  
     """
-    Convert returns to prices using cumulative product method.
-    
+    Compound the returns to compute the cumulative growth factor, assuming a starting value of 1 for each series.
+
+    This function calculates the cumulative product of (1 + returns), which represents the compounded growth
+    over time. Useful for converting periodic returns into an equity curve or price level series in finance.
+
     Parameters
     ----------
     returns : pd.DataFrame
-        DataFrame of asset returns with dates as index and assets as columns
-        
+        DataFrame with dates as index and assets as columns, containing periodic return values (e.g., 0.05 for 5%).
+        NaN values are preserved and will propagate in the cumulative product, resulting in NaN from the first
+        occurrence onward in each column.
+
     Returns
     -------
     pd.DataFrame
-        DataFrame of prices, with the first date set to 1.0 and subsequent
-        prices computed via cumulative returns
-        
+        DataFrame of the same shape, containing the cumulative compounded values starting from 1, with NaNs propagated.
+
     Notes
     -----
-    - Assumes returns are in decimal form (e.g., 0.01 for 1% return)
-    - First date is set to NaN and then filled with 1.0 to anchor the price series
+    - Assumes returns are in decimal form.
+    - Cumprod is applied along axis=0 (down the rows, time dimension).
+    - For cumulative returns (not growth factor), subtract 1 from the result.
+    - If you need to start from a different initial value, multiply the result by that value externally.
+    - To treat NaNs as 0% return (no change) instead of propagating, use returns.fillna(0) externally before calling.
+
+    Example
+    -------
+    >>> returns = pd.DataFrame({'Asset1': [0.1, 0.2, np.nan, -0.1]})
+    >>> compound(returns)
+           Asset1
+    0    1.1000
+    1    1.3200
+    2         NaN
+    3         NaN
     """
-    # Input validation
-    if not isinstance(returns, pd.DataFrame):
-        raise TypeError("returns must be a pandas DataFrame")
     
-    # Compute cumulative returns
-    prices = (returns + 1).cumprod()
-    
-    # Set first date and sort
-    first_date = returns.index.shift(-1)[0]
-    prices.loc[first_date, :] = np.nan
-    prices = prices.sort_index()
-    
-    # Fill first NaN with 1.0 for each column
-    prices = prices.apply(lambda col: fill_first_nan(col, value=1.0))
-    prices.index.freq = returns.index.freq # Preserve frequency
-    
-    return prices
+    return returns.add(1).cumprod()
 
 
 def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> pd.DataFrame:
