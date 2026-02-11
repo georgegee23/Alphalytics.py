@@ -50,7 +50,6 @@ def cumgrowth(returns: pd.DataFrame) -> pd.DataFrame:
     
     return returns.add(1).cumprod()
 
-
 def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> pd.DataFrame:
   
     idxs = {
@@ -69,7 +68,7 @@ def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> p
     year5_idx = int(periods_per_year*5)
     year10_idx = int(periods_per_year*10)
     
-    qtr_ret = qtr_ret = qs.stats.comp(returns.iloc[-qtr_idx-1:-1]) 
+    qtr_ret = qs.stats.comp(returns.iloc[-qtr_idx-1:-1]) 
     semiannual_ret = qs.stats.comp(returns.iloc[-semiannual_idx-1:-1]) 
     year1_ret = qs.stats.cagr(returns.iloc[-year1_idx-1:-1]) 
     year3_ret = qs.stats.cagr(returns.iloc[-year3_idx-1:-1]) 
@@ -183,6 +182,89 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataF
 
 
  # ============== THE END ============== #     
+
+def downcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+    """
+    Calculates the Down Capture Ratio using the Geometric Mean method.
+    
+    Args:
+        portfolio_returns (pd.Series): Periodic returns (e.g., monthly) of the strategy.
+        benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
+        
+    Returns:
+        float: The ratio (e.g., 0.95 = 95%). Returns np.nan if no down markets occur.
+    """
+    # 1. Align data (intersection of dates) and drop missing values
+    #    This ensures we only compare periods where both have data.
+    df = pd.DataFrame({
+        'port': portfolio_returns, 
+        'bench': benchmark_returns
+    }).dropna()
+    
+    # 2. Filter for periods where Benchmark was strictly DOWN (< 0)
+    #    Standard practice is < 0, but some use <= 0.
+    down_market = df[df['bench'] < 0]
+    
+    # 3. Handle edge case: No down markets
+    if len(down_market) == 0:
+        return np.nan
+
+    n = len(down_market)
+
+    # 4. Calculate Geometric Mean (Compound Annual Growth Rate style) for down periods
+    #    Formula: (Product(1 + r)) ^ (1/n) - 1
+    #    Note: This accurately captures the compounding pain of losses.
+    
+    port_geo_avg = (np.prod(1 + down_market['port'])) ** (1 / n) - 1
+    bench_geo_avg = (np.prod(1 + down_market['bench'])) ** (1 / n) - 1
+    
+    # 5. Calculate Ratio
+    #    Safety check: Ensure benchmark average is not 0 (unlikely given filter < 0)
+    if bench_geo_avg == 0:
+        return np.nan
+        
+    ratio = port_geo_avg / bench_geo_avg
+    
+    return ratio
+
+def upcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+    """
+    Calculates the Up Capture Ratio (Geometric Mean method).
+    
+    Args:
+        portfolio_returns (pd.Series): Periodic returns of the strategy.
+        benchmark_returns (pd.Series): Periodic returns of the benchmark.
+        
+    Returns:
+        float: The ratio (e.g., 1.10 = 110%). Returns np.nan if no up markets occur.
+    """
+    # 1. Align data and drop missing values
+    df = pd.DataFrame({
+        'port': portfolio_returns, 
+        'bench': benchmark_returns
+    }).dropna()
+    
+    # 2. Filter for periods where Benchmark was UP (> 0)
+    up_market = df[df['bench'] > 0]
+    
+    # 3. Handle edge case: No up markets
+    if len(up_market) == 0:
+        return np.nan
+
+    n = len(up_market)
+    
+    # 4. Calculate Geometric Mean for UP periods
+    #    Formula: (Product(1 + r)) ^ (1/n) - 1
+    
+    port_geo_avg = (np.prod(1 + up_market['port'])) ** (1 / n) - 1
+    bench_geo_avg = (np.prod(1 + up_market['bench'])) ** (1 / n) - 1
+    
+    # 5. Safety check: Avoid division by zero
+    if bench_geo_avg == 0:
+        return np.nan
+        
+    return port_geo_avg / bench_geo_avg
+
 
 __all__ = ['compute_prices',
            'compute_performance_table', 'compute_cumulative_growth',
