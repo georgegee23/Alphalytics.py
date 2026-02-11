@@ -183,7 +183,7 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataF
 
  # ============== THE END ============== #     
 
-def downcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+def down_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
     """
     Calculates the Down Capture Ratio using the Geometric Mean method.
     
@@ -227,7 +227,7 @@ def downcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series
     
     return ratio
 
-def upcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+def up_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
     """
     Calculates the Up Capture Ratio (Geometric Mean method).
     
@@ -268,4 +268,5 @@ def upcapture_ratio(portfolio_returns: pd.Series, benchmark_returns: pd.Series) 
 
 __all__ = ['compute_prices',
            'compute_performance_table', 'compute_cumulative_growth',
-           'compute_forward_returns', 'compute_capm']
+           'compute_forward_returns', 'compute_capm',
+           'down_capture', 'up_capture']
