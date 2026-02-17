@@ -265,8 +265,48 @@ def up_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> fl
         
     return port_geo_avg / bench_geo_avg
 
+def batting_averages(returns, benchmark):
+    """
+    Calculates Overall, Up Market, and Down Market Batting Averages.
+    
+    Parameters:
+    - returns (pd.Series): The strategy returns.
+    - benchmark (pd.Series): The benchmark returns.
+    
+    Returns:
+    - pd.Series: Containing the three batting average metrics.
+    """
+    # Ensure inputs are aligned by index (dates) and drop missing data
+    data = pd.concat([returns, benchmark], axis=1).dropna()
+    r = data.iloc[:, 0]  # Strategy
+    b = data.iloc[:, 1]  # Benchmark
+
+    # 1. Overall Batting Average: % of time Strategy > Benchmark
+    batting_avg = (r > b).mean()
+
+    # 2. Up Market Batting Average: % of time Strategy > Benchmark (when Benchmark > 0)
+    up_market_mask = b > 0
+    if up_market_mask.sum() > 0:
+        up_batting_avg = (r[up_market_mask] > b[up_market_mask]).mean()
+    else:
+        up_batting_avg = None # Handle case with no up markets
+
+    # 3. Down Market Batting Average: % of time Strategy > Benchmark (when Benchmark < 0)
+    down_market_mask = b < 0
+    if down_market_mask.sum() > 0:
+        down_batting_avg = (r[down_market_mask] > b[down_market_mask]).mean()
+    else:
+        down_batting_avg = None # Handle case with no down markets
+
+    return pd.Series({
+        "Average": batting_avg,
+        "Up Market": up_batting_avg,
+        "Down Market": down_batting_avg
+    })
+
 
 __all__ = ['compute_prices',
            'compute_performance_table', 'compute_cumulative_growth',
            'compute_forward_returns', 'compute_capm',
-           'down_capture', 'up_capture']
+           'down_capture', 'up_capture',
+           'batting_averages']
