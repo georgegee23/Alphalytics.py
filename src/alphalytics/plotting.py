@@ -493,7 +493,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter  # <--- Essential import
 
 def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, periods_per_year=252, 
-                     title="Risk-Return Analysis", fig_size=(6, 6), font_size=10, 
+                     title="Risk-Return Analysis", fig_size=(3, 3), font_size=6, 
                      names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
     """
     Plots a Risk-Return scatter chart comparing a strategy to a benchmark.
