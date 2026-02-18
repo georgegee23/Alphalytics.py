@@ -487,32 +487,23 @@ def plot_quantiles_annual_turnover(quantiles:pd.DataFrame, periods_per_year:int,
     plt.show()
 
 
-def plot_risk_return(strategy_returns:pd.Series, benchmark_returns:pd.Series, periods_per_year=252, title="Risk-Return Analysis",
-                     fig_size = (3, 3), font_size = 6, names = ["Strategy", "Benchmark"],
-                     colors = ["orange", "blue"]):
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter  # <--- Essential import
+
+def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, periods_per_year=252, 
+                     title="Risk-Return Analysis", fig_size=(6, 6), font_size=10, 
+                     names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
     """
     Plots a Risk-Return scatter chart comparing a strategy to a benchmark.
-    
-    Parameters:
-    - strategy_returns (pd.Series or np.array): Periodic returns of the strategy.
-    - benchmark_returns (pd.Series or np.array): Periodic returns of the benchmark.
-    - periods_per_year (int): Frequency of data (252 for daily, 12 for monthly).
-    - title (str): Title of the chart.
-    
-    Returns:
-    - fig: The matplotlib figure object.
+    (Fixed to avoid UserWarning about FixedLocator)
     """
     
     # 1. Helper function to calculate metrics
     def get_metrics(returns, freq):
-        # Calculate Annualized Return: Compounded Annual Growth Rate (CAGR) approach 
-        # is often preferred, but simple arithmetic mean is common for this specific chart type.
-        # We will use simple arithmetic mean for the Y-axis coordinates.
         ann_return = np.mean(returns) * freq
-        
-        # Calculate Annualized Volatility (Standard Deviation)
         ann_volatility = np.std(returns) * np.sqrt(freq)
-        
         return ann_volatility, ann_return
 
     # 2. Calculate coordinates
@@ -526,7 +517,7 @@ def plot_risk_return(strategy_returns:pd.Series, benchmark_returns:pd.Series, pe
     ax.scatter(strat_risk, strat_ret, color=colors[0], s=150, label=names[0], zorder=5, edgecolors='black')
     
     # Plot Benchmark
-    ax.scatter(bench_risk, bench_ret, color=colors[1], s = 150, label=names[1], zorder=5, edgecolors='black', alpha=0.7)
+    ax.scatter(bench_risk, bench_ret, color=colors[1], s=150, label=names[1], zorder=5, edgecolors='black', alpha=0.7)
     
     # 4. Styling and formatting
     ax.set_title(title, fontsize=font_size+2, fontweight='bold')
@@ -543,15 +534,23 @@ def plot_risk_return(strategy_returns:pd.Series, benchmark_returns:pd.Series, pe
     # Adjust axis limits to give some breathing room
     max_risk = max(strat_risk, bench_risk) * 1.2
     max_ret = max(abs(strat_ret), abs(bench_ret)) * 1.2
-    # Ensure 0 is included but not strictly centered if returns are all positive
     ax.set_xlim(0, max_risk) 
     ax.set_ylim(min(-0.05, min(strat_ret, bench_ret)*1.2), max(0.05, max_ret))
 
-    # Format axis as percentages
-    vals_x = ax.get_xticks()
-    ax.set_xticklabels(['{:,.1%}'.format(x) for x in vals_x], fontsize=font_size)
-    vals_y = ax.get_yticks()
-    ax.set_yticklabels(['{:,.1%}'.format(y) for y in vals_y], fontsize=font_size)
+    # --- FIX STARTS HERE ---
+    
+    # Function to format ticks as percentages
+    def percentage_formatter(x, pos):
+        return '{:,.1%}'.format(x)
+
+    # Apply the formatter to both axes
+    ax.xaxis.set_major_formatter(FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(FuncFormatter(percentage_formatter))
+    
+    # Apply font size to the ticks (since we can't pass it to set_xticklabels anymore)
+    ax.tick_params(axis='both', labelsize=font_size)
+
+    # --- FIX ENDS HERE ---
     
     plt.legend(loc='upper left', fontsize=font_size)
     plt.tight_layout()
