@@ -520,7 +520,7 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     ax.scatter(bench_risk, bench_ret, color=colors[1], s=150, label=legend_names[1], zorder=5, edgecolors='black', alpha=0.7)
     
     # 4. Styling and formatting
-    ax.set_title(title, fontsize=font_size+2, fontweight='bold')
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
     ax.set_xlabel('Annualized Risk (Volatility)', fontsize=font_size)
     ax.set_ylabel('Annualized Return', fontsize=font_size)
     
@@ -636,6 +636,98 @@ def plot_capture_ratios(strategy_returns: pd.Series, benchmark_returns: pd.Serie
     ax.set_ylim(100 - max_dist, 100 + max_dist)
 
     plt.legend(loc='lower right', fontsize=font_size)
+    plt.tight_layout()
+    
+    return fig, ax
+
+def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
+                          figsize=(3, 3), 
+                          colors=['#1f77b4', '#ff7f0e', '#2ca02c'], 
+                          title='Batting Average',
+                          font_size=6):
+    """
+    Calculates and plots the Batting Average (Win Rate) for Overall, Up, and Down markets.
+    
+    Parameters:
+    - strategy_returns, benchmark_returns: pd.Series of periodic returns.
+    - figsize: Tuple (width, height).
+    - colors: List of colors for the bars.
+    - title: Chart title.
+    - font_size: Base font size for labels.
+    
+    Returns:
+    - fig, ax: Matplotlib objects.
+    """
+    
+    # --- 1. Calculation Logic ---
+    # Align data
+    data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
+    strat = data.iloc[:, 0]
+    bench = data.iloc[:, 1]
+    
+    # Calculate Win Rates
+    # Overall: % of periods where Strat > Bench
+    overall_win = (strat > bench).mean()
+    
+    # Up Market: % of periods where Strat > Bench (given Bench > 0)
+    up_market_mask = bench > 0
+    if up_market_mask.sum() > 0:
+        up_win = (strat[up_market_mask] > bench[up_market_mask]).mean()
+    else:
+        up_win = 0.0
+
+    # Down Market: % of periods where Strat > Bench (given Bench < 0)
+    down_market_mask = bench < 0
+    if down_market_mask.sum() > 0:
+        down_win = (strat[down_market_mask] > bench[down_market_mask]).mean()
+    else:
+        down_win = 0.0
+        
+    # Create the Results Series
+    results = pd.Series(
+        [overall_win, up_win, down_win], 
+        index=["Overall", "Up Market", "Down Market"]
+    )
+
+    # --- 2. Setup the Plot ---
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Use the provided colors, repeating if necessary
+    if len(colors) < len(results):
+        colors = colors * len(results)
+        
+    bars = ax.bar(results.index, results.values, color=colors[:len(results)], alpha=0.8, width=0.6)
+
+    # --- 3. Styling ---
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
+    ax.set_ylim(0, 1.15) # Give headroom for labels
+    ax.set_ylabel('Win Rate', fontsize=font_size)
+
+    # Format Y-axis as percentage
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Adjust Font Sizes
+    ax.tick_params(axis='x', labelsize=font_size) 
+    ax.tick_params(axis='y', labelsize=font_size)
+
+    # Add Labels on Top of Bars
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.02,
+                f'{height:.0%}',
+                ha='center', va='bottom', fontsize=font_size+2, fontweight='bold')
+
+    # --- 4. Add 50% "Coin Flip" Line ---
+    ax.axhline(0.5, color='gray', linestyle='--', alpha=0.5, linewidth=1)
+    
+    # Dynamic positioning for the text (placed near the left edge)
+    ax.text(x=ax.get_xlim()[0] + 0.1, y=0.52, s="50% Threshold", 
+            color='gray', fontsize=font_size, ha='left')
+
     plt.tight_layout()
     
     return fig, ax
