@@ -494,7 +494,7 @@ from matplotlib.ticker import FuncFormatter  # <--- Essential import
 
 def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, periods_per_year=252, 
                      title="Risk-Return Analysis", fig_size=(3, 3), font_size=6, 
-                     names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
+                     legend_names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
     """
     Plots a Risk-Return scatter chart comparing a strategy to a benchmark.
     (Fixed to avoid UserWarning about FixedLocator)
@@ -514,10 +514,10 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     fig, ax = plt.subplots(figsize=fig_size)
     
     # Plot Strategy
-    ax.scatter(strat_risk, strat_ret, color=colors[0], s=150, label=names[0], zorder=5, edgecolors='black')
+    ax.scatter(strat_risk, strat_ret, color=colors[0], s=150, label=legend_names[0], zorder=5, edgecolors='black')
     
     # Plot Benchmark
-    ax.scatter(bench_risk, bench_ret, color=colors[1], s=150, label=names[1], zorder=5, edgecolors='black', alpha=0.7)
+    ax.scatter(bench_risk, bench_ret, color=colors[1], s=150, label=legend_names[1], zorder=5, edgecolors='black', alpha=0.7)
     
     # 4. Styling and formatting
     ax.set_title(title, fontsize=font_size+2, fontweight='bold')
@@ -558,11 +558,11 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     return fig, ax
 
 def plot_capture_ratios(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
-                        figsize=(3, 3), 
+                        fig_size=(3, 3), 
                         colors=['#1f77b4', '#ff7f0e'], 
                         title='Up vs. Down Market Capture',
                         font_size=6,
-                        series_names=["Strategy", "Benchmark"]):
+                        legend_names=["Strategy", "Benchmark"]):
     """
     Calculates Up/Down Capture ratios and plots them against a benchmark.
     
@@ -600,16 +600,16 @@ def plot_capture_ratios(strategy_returns: pd.Series, benchmark_returns: pd.Serie
         down_capture = 0
 
     # --- 2. Setup the Plot ---
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=fig_size)
 
     # --- 3. Create Scatter Plot ---
     # Plot the Strategy
     ax.scatter(down_capture, up_capture, 
-               color=colors[0], s=200, label=series_names[0], zorder=5, edgecolors='white')
+               color=colors[0], s=200, label=legend_names[0], zorder=5, edgecolors='white')
 
     # Plot Benchmark (Reference point at 100/100)
     ax.scatter(100, 100, 
-               color=colors[1], s=150, marker='D', label=series_names[1], zorder=4, edgecolors='white', alpha=0.7)
+               color=colors[1], s=150, marker='D', label=legend_names[1], zorder=4, edgecolors='white', alpha=0.7)
 
     # --- 4. Add "Crosshairs" (The Market 100/100 Line) ---
     ax.axhline(100, color='black', linestyle='--', alpha=0.3)
