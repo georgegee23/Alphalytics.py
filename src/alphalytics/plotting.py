@@ -555,6 +555,89 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     plt.legend(loc='upper left', fontsize=font_size)
     plt.tight_layout()
     
-    return fig
+    return fig, ax
+
+def plot_capture_ratios(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
+                        figsize=(3, 3), 
+                        colors=['#1f77b4', '#ff7f0e'], 
+                        title='Up vs. Down Market Capture',
+                        font_size=6,
+                        series_names=["Strategy", "Benchmark"]):
+    """
+    Calculates Up/Down Capture ratios and plots them against a benchmark.
+    
+    Parameters:
+    - strategy_returns (pd.Series): Periodic returns of the strategy.
+    - benchmark_returns (pd.Series): Periodic returns of the benchmark.
+    - figsize (tuple): Figure dimensions.
+    - colors (list): Colors for [Strategy, Benchmark].
+    - font_size (int): Base font size for labels.
+    - series_names (list): Labels for the legend.
+    
+    Returns:
+    - fig: The matplotlib figure object.
+    - ax: The matplotlib axes object.
+    """
+    
+    # --- 1. Internal Calculation Logic ---
+    # align data to ensure we compare same periods
+    data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
+    strat = data.iloc[:, 0]
+    bench = data.iloc[:, 1]
+    
+    # Up Capture: Avg return of strat when bench > 0 / Avg return of bench when bench > 0
+    up_market = bench > 0
+    if up_market.sum() > 0:
+        up_capture = (strat[up_market].mean() / bench[up_market].mean()) * 100
+    else:
+        up_capture = 0
+    
+    # Down Capture: Avg return of strat when bench < 0 / Avg return of bench when bench < 0
+    down_market = bench < 0
+    if down_market.sum() > 0:
+        down_capture = (strat[down_market].mean() / bench[down_market].mean()) * 100
+    else:
+        down_capture = 0
+
+    # --- 2. Setup the Plot ---
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # --- 3. Create Scatter Plot ---
+    # Plot the Strategy
+    ax.scatter(down_capture, up_capture, 
+               color=colors[0], s=200, label=series_names[0], zorder=5, edgecolors='white')
+
+    # Plot Benchmark (Reference point at 100/100)
+    ax.scatter(100, 100, 
+               color=colors[1], s=150, marker='D', label=series_names[1], zorder=4, edgecolors='white', alpha=0.7)
+
+    # --- 4. Add "Crosshairs" (The Market 100/100 Line) ---
+    ax.axhline(100, color='black', linestyle='--', alpha=0.3)
+    ax.axvline(100, color='black', linestyle='--', alpha=0.3)
+
+    # --- 5. Styling & Labels ---
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
+    ax.set_xlabel('Down Capture Ratio (%)', fontsize=font_size)
+    ax.set_ylabel('Up Capture Ratio (%)', fontsize=font_size)
+    ax.grid(True, linestyle=':', alpha=0.6)
+    
+    # Ensure tick labels match the requested font size
+    ax.tick_params(axis='both', labelsize=font_size)
+
+    # Annotate the Strategy dot
+    # Uses a relative offset based on font_size rather than hardcoded '2'
+    offset = font_size * 0.4
+    ax.text(down_capture, up_capture + offset, f"  {down_capture:.0f}/{up_capture:.0f}", 
+            fontsize=font_size+2, verticalalignment='bottom', color=colors[0], fontweight='bold')
+
+    # Dynamic Limits to ensure points are visible
+    max_dist = max(abs(100 - down_capture), abs(100 - up_capture), 20) * 1.2
+    ax.set_xlim(100 - max_dist, 100 + max_dist)
+    ax.set_ylim(100 - max_dist, 100 + max_dist)
+
+    plt.legend(loc='lower right', fontsize=font_size)
+    plt.tight_layout()
+    
+    return fig, ax
 
  # ============== THE END ============== #     
