@@ -556,7 +556,7 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
 
 
 def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6, 
-                      markers=None, markersize=200, colors=None, 
+                      markers=None, markersize=150, colors=None, 
                       center=1, min_distance=0.001):    
     """
     Creates a symmetric scatter plot centered around a specified value with crosshairs.
@@ -614,7 +614,8 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     sns.scatterplot(
         ax=ax, data=data, x=x_col, y=y_col, 
         hue=data.index, style=data.index, markers=markers, # <-- Plural 'markers' used here
-        s=markersize, zorder=5, palette=colors, edgecolors='black'
+        s=markersize, zorder=5, palette=colors, edgecolors='black',
+        s = 150
     )
     
     # Crosshairs & Styling
