@@ -708,6 +708,14 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
                                 colors=colors,
                                 markers=markers)
     
+    # Function to format ticks as percentages
+    def percentage_formatter(x, pos):
+        return '{:,.1%}'.format(x)
+    
+    # Apply the formatter to both axes
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    
     return fig, ax
 
 def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
