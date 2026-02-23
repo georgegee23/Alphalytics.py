@@ -614,7 +614,8 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     sns.scatterplot(
         ax=ax, data=data, x=x_col, y=y_col, 
         hue=data.index, style=data.index, markers=markers, # <-- Plural 'markers' used here
-        s=markersize, zorder=5, palette=colors, edgecolors='black'
+        s=markersize, zorder=5, palette=colors, 
+        edgecolors='black', linewidth=0.5
     )
     
     # Crosshairs & Styling
