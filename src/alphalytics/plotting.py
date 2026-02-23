@@ -698,7 +698,7 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     """
 
     # Compute Capture Dataframe
-    captures_df = capture_ratios(strategy_returns, benchmark_returns)
+    captures_df = capture_ratios(strategy_returns, benchmark_returns) * 100
 
     # Plot Capture DataFrame
     fig, ax = plot_xy_symmetric(data=captures_df, 
@@ -708,13 +708,6 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
                                 colors=colors,
                                 markers=markers)
     
-    # Function to format ticks as percentages
-    def percentage_formatter(x, pos):
-        return '{:,.1%}'.format(x)
-    
-    # Apply the formatter to both axes
-    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
-    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
     
     return fig, ax
 
