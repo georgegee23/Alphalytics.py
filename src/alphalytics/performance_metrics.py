@@ -275,7 +275,7 @@ def capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series)
     bench = data.iloc[:, -1]
     
     capture_dict = {}
-    for col in data.columns[:-1]:
+    for col in data.columns:
         strat = data[col]
         capture_dict[col] = {
             "Up Capture": up_capture(strat, bench),
