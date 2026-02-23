@@ -621,7 +621,7 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     ax.axhline(center, color='black', linestyle='--', alpha=0.3)
     ax.axvline(center, color='black', linestyle='--', alpha=0.3)
     
-    ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=5)
+    ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=7)
     ax.set_xlabel(x_col, fontsize=fontsize)
     ax.set_ylabel(y_col, fontsize=fontsize)
     ax.grid(True, linestyle=':', alpha=0.6)
@@ -641,6 +641,8 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
 
     # Move legend to a consistent spot
     ax.legend(fontsize=fontsize, loc='lower right')
+
+    plt.tight_layout()
 
     return fig, ax
 
@@ -698,7 +700,7 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     """
 
     # Compute Capture Dataframe
-    captures_df = capture_ratios(strategy_returns, benchmark_returns) * 100
+    captures_df = capture_ratios(strategy_returns, benchmark_returns)
 
     # Plot Capture DataFrame
     fig, ax = plot_xy_symmetric(data=captures_df, 
