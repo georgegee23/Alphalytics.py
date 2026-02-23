@@ -10,7 +10,7 @@ import seaborn as sns
 import quantstats as qs
 from scipy.stats import norm, probplot
 
-from .performance_metrics import compute_capm, compute_performance_table, capture_ratios
+from .performance_metrics import compute_capm, performance_table, capture_ratios
 from .ic_analysis import cs_spearmanr, compute_ic_stats, factor_decay
 from .quantile_analysis import fwd_quantile_stats
 from .turnover_analysis import compute_quantiles_turnover
@@ -650,7 +650,7 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
                         colors=None, 
                         title='Up vs. Down Market Capture',
                         fontsize=6,
-                        marker='o'):
+                        markers=['o']):
     """
     High-level wrapper that calculates and plots Up/Down Capture ratios.
     
