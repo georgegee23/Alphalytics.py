@@ -24,8 +24,10 @@ from .quantile_analysis import to_quantiles, compute_quantile_returns, get_quant
 from .turnover_analysis import calculate_autocorrelation, compute_factor_autocorr, compute_quantile_turnover, compute_quantiles_turnover
 
 from .performance_metrics import return_n, return_ytd, ann_return, ann_return_common_si, performance_table, \
-    cumgrowth, compute_performance_table, compute_cumulative_growth, \
-    compute_forward_returns, compute_capm, down_capture, up_capture, batting_averages
+    cumgrowth, compute_cumulative_growth, compute_forward_returns, \
+    compute_capm, batting_averages, \
+    down_capture, up_capture, capture_ratios
+    
 
 from .plotting import plot_factor_data, plot_cumulative_performance, plot_quantiles_risk_metrics, plot_quantile_correlations, plot_spearman_rank, \
     plot_ic_hist, qqplot_ic, plot_ic_summary, plot_factor_decay, plot_forward_returns, plot_quantiles_annual_turnover, \
@@ -40,8 +42,7 @@ __all__ = [
     "calculate_autocorrelation", "compute_factor_autocorr", "compute_quantile_turnover", "compute_quantiles_turnover",
     
     'return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
-    "cumgrowth", "compute_performance_table", "compute_cumulative_growth", "compute_forward_returns", "compute_capm",
-
+    "cumgrowth", "compute_cumulative_growth", "compute_forward_returns", "compute_capm",
     "down_capture", "up capture", "batting_averages",
 
     "plot_factor_data", "plot_cumulative_performance", "plot_quantiles_risk_metrics", "plot_quantile_correlations",
