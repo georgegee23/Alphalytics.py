@@ -621,7 +621,7 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     ax.axhline(center, color='black', linestyle='--', alpha=0.3)
     ax.axvline(center, color='black', linestyle='--', alpha=0.3)
     
-    ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=7)
+    ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=8)
     ax.set_xlabel(x_col, fontsize=fontsize)
     ax.set_ylabel(y_col, fontsize=fontsize)
     ax.grid(True, linestyle=':', alpha=0.6)
