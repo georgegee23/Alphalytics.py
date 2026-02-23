@@ -4,11 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
+
+import seaborn as sns
+
 import quantstats as qs
 from scipy.stats import norm, probplot
 
-
-from .performance_metrics import compute_capm, compute_performance_table
+from .performance_metrics import compute_capm, compute_performance_table, capture_ratios
 from .ic_analysis import cs_spearmanr, compute_ic_stats, factor_decay
 from .quantile_analysis import fwd_quantile_stats
 from .turnover_analysis import compute_quantiles_turnover
@@ -487,11 +489,6 @@ def plot_quantiles_annual_turnover(quantiles:pd.DataFrame, periods_per_year:int,
     plt.show()
 
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter  # <--- Essential import
-
 def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, periods_per_year=252, 
                      title="Risk-Return Analysis", fig_size=(3, 3), font_size=6, 
                      legend_names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
@@ -544,8 +541,8 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
         return '{:,.1%}'.format(x)
 
     # Apply the formatter to both axes
-    ax.xaxis.set_major_formatter(FuncFormatter(percentage_formatter))
-    ax.yaxis.set_major_formatter(FuncFormatter(percentage_formatter))
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
     
     # Apply font size to the ticks (since we can't pass it to set_xticklabels anymore)
     ax.tick_params(axis='both', labelsize=font_size)
@@ -557,86 +554,159 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     
     return fig, ax
 
-def plot_capture_ratios(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
-                        fig_size=(3, 3), 
-                        colors=['#1f77b4', '#ff7f0e'], 
-                        title='Up vs. Down Market Capture',
-                        font_size=6,
-                        legend_names=["Strategy", "Benchmark"]):
+
+def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6, 
+                      markers=None, markersize=200, colors=None, 
+                      center=1, min_distance=0.001):    
     """
-    Calculates Up/Down Capture ratios and plots them against a benchmark.
+    Creates a symmetric scatter plot centered around a specified value with crosshairs.
     
-    Parameters:
-    - strategy_returns (pd.Series): Periodic returns of the strategy.
-    - benchmark_returns (pd.Series): Periodic returns of the benchmark.
-    - figsize (tuple): Figure dimensions.
-    - colors (list): Colors for [Strategy, Benchmark].
-    - font_size (int): Base font size for labels.
-    - series_names (list): Labels for the legend.
-    
-    Returns:
-    - fig: The matplotlib figure object.
-    - ax: The matplotlib axes object.
+    This visualization is designed for relative performance metrics (e.g., Up/Down 
+    Capture Ratios, Alpha vs. Beta) where axes share a common scale and a theoretical 
+    anchor point. It dynamically scales the axes symmetrically based on the maximum 
+    deviation from the center.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing the data to plot. The index is used to label the legend.
+        The first column maps to the X-axis, and the second column maps to the Y-axis.
+    figsize : tuple, default (3, 3)
+        The dimensions (width, height) of the figure in inches.
+    title : str, optional
+        The title of the plot.
+    fontsize : int or float, default 6
+        The base font size applied to the title, axis labels, tick marks, and legend.
+    markers : str, list, or dict, optional
+        The marker style for the scatter points. Pass a single string for uniform 
+        shapes, or a dictionary mapping index names to distinct shapes. Default is 'o'.
+    markersize : int or float, default 200
+        The size of the scatter plot markers.
+    colors : list or str, optional
+        Color palette or list of colors to apply to the plotted points. If None, 
+        Seaborn's default palette is used.
+    center : int or float, default 1
+        The anchor value where the X and Y crosshairs intersect. 
+    min_distance : float, default 0.001
+        The minimum enforced distance from the center to the axis limits. 
+
+    Returns
+    -------
+    fig, ax : The generated matplotlib figure and axes objects.
     """
     
-    # --- 1. Internal Calculation Logic ---
-    # align data to ensure we compare same periods
-    data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
-    strat = data.iloc[:, 0]
-    bench = data.iloc[:, 1]
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # 1. Dynamically get column names by their integer index
+    x_col = data.columns[0]
+    y_col = data.columns[1]
+
+    # --- NEW: Format markers securely ---
+    if markers is None:
+        markers = 'o' # Set a default uniform shape if nothing is passed
+        
+    if isinstance(markers, str):
+        # Convert a single string (like 'D') into a dictionary for Seaborn's style parameter
+        markers = {key: markers for key in data.index}
+    # -----------------------------------
+
+    # Seaborn handles the colors, shapes, and legend automatically
+    sns.scatterplot(
+        ax=ax, data=data, x=x_col, y=y_col, 
+        hue=data.index, style=data.index, markers=markers, # <-- Plural 'markers' used here
+        s=markersize, zorder=5, palette=colors, edgecolors='white'
+    )
     
-    # Up Capture: Avg return of strat when bench > 0 / Avg return of bench when bench > 0
-    up_market = bench > 0
-    if up_market.sum() > 0:
-        up_capture = (strat[up_market].mean() / bench[up_market].mean()) * 100
-    else:
-        up_capture = 0
+    # Crosshairs & Styling
+    ax.axhline(center, color='black', linestyle='--', alpha=0.3)
+    ax.axvline(center, color='black', linestyle='--', alpha=0.3)
     
-    # Down Capture: Avg return of strat when bench < 0 / Avg return of bench when bench < 0
-    down_market = bench < 0
-    if down_market.sum() > 0:
-        down_capture = (strat[down_market].mean() / bench[down_market].mean()) * 100
-    else:
-        down_capture = 0
-
-    # --- 2. Setup the Plot ---
-    fig, ax = plt.subplots(figsize=fig_size)
-
-    # --- 3. Create Scatter Plot ---
-    # Plot the Strategy
-    ax.scatter(down_capture, up_capture, 
-               color=colors[0], s=200, label=legend_names[0], zorder=5, edgecolors='white')
-
-    # Plot Benchmark (Reference point at 100/100)
-    ax.scatter(100, 100, 
-               color=colors[1], s=150, marker='D', label=legend_names[1], zorder=4, edgecolors='white', alpha=0.7)
-
-    # --- 4. Add "Crosshairs" (The Market 100/100 Line) ---
-    ax.axhline(100, color='black', linestyle='--', alpha=0.3)
-    ax.axvline(100, color='black', linestyle='--', alpha=0.3)
-
-    # --- 5. Styling & Labels ---
-    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
-    ax.set_xlabel('Down Capture Ratio (%)', fontsize=font_size)
-    ax.set_ylabel('Up Capture Ratio (%)', fontsize=font_size)
+    ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=5)
+    ax.set_xlabel(x_col, fontsize=fontsize)
+    ax.set_ylabel(y_col, fontsize=fontsize)
     ax.grid(True, linestyle=':', alpha=0.6)
+    ax.tick_params(axis='both', labelsize=fontsize)
+
+    # Find the absolute max distance from center for both X and Y
+    max_dev_x = (data[x_col] - center).abs().max()
+    max_dev_y = (data[y_col] - center).abs().max()
+
+    # Get the largest deviation, add 20% padding, and enforce minimum distance
+    max_dist = max(max_dev_x, max_dev_y) * 1.2
+    max_dist = max(max_dist, min_distance) 
+
+    # Apply the limits symmetrically
+    ax.set_xlim(center - max_dist, center + max_dist)
+    ax.set_ylim(center - max_dist, center + max_dist)
+
+    # Move legend to a consistent spot
+    ax.legend(fontsize=fontsize, loc='lower right')
+
+    return fig, ax
+
+
+def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series, 
+                        figsize=(3, 3), 
+                        colors=None, 
+                        title='Up vs. Down Market Capture',
+                        fontsize=6,
+                        marker='o'):
+    """
+    High-level wrapper that calculates and plots Up/Down Capture ratios.
     
-    # Ensure tick labels match the requested font size
-    ax.tick_params(axis='both', labelsize=font_size)
+    This function acts as an orchestrator, bridging the mathematical calculation 
+    (`capture_ratios`) and the visualization (`plot_xy_symmetric`). It allows 
+    users to generate a complete capture ratio scatter plot directly from raw 
+    periodic return series.
 
-    # Annotate the Strategy dot
-    # Uses a relative offset based on font_size rather than hardcoded '2'
-    offset = font_size * 0.4
-    ax.text(down_capture, up_capture + offset, f"  {down_capture:.0f}/{up_capture:.0f}", 
-            fontsize=font_size+2, verticalalignment='bottom', color=colors[0], fontweight='bold')
+    Parameters
+    ----------
+    strategy_returns : pd.DataFrame
+        Periodic returns of the strategies. Each column should represent a 
+        distinct strategy or asset, and the index should be datetime.
+    benchmark_returns : pd.Series
+        Periodic returns of the benchmark to calculate the capture against. 
+        Must be aligned or alignable with `strategy_returns`.
+    figsize : tuple, default (3, 3)
+        The dimensions (width, height) of the figure in inches.
+    colors : list or str, optional
+        Color palette or list of colors to apply to the plotted strategies. 
+        If None, Seaborn's default palette is used.
+    title : str, default 'Up vs. Down Market Capture'
+        The title displayed at the top of the plot.
+    fontsize : int or float, default 6
+        The base font size applied to the title, axis labels, tick marks, 
+        and legend.
+    markers : str, list, or dict, optional
+        The marker style for the scatter points. Pass a single string for uniform 
+        shapes, or a dictionary mapping index names to distinct shapes. Default is 'o'.
 
-    # Dynamic Limits to ensure points are visible
-    max_dist = max(abs(100 - down_capture), abs(100 - up_capture), 20) * 1.2
-    ax.set_xlim(100 - max_dist, 100 + max_dist)
-    ax.set_ylim(100 - max_dist, 100 + max_dist)
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The generated matplotlib figure.
+    ax : matplotlib.axes.Axes
+        The axes containing the plotted data.
+        
+    Example
+    -------
+    >>> fig, ax = plot_capture_ratios(
+    ...     strategy_returns=my_funds_df, 
+    ...     benchmark_returns=sp500_series,
+    ...     title="Manager Capture Analysis"
+    ... )
+    """
 
-    plt.legend(loc='lower right', fontsize=font_size)
-    plt.tight_layout()
+    # Compute Capture Dataframe
+    captures_df = capture_ratios(strategy_returns, benchmark_returns)
+
+    # Plot Capture DataFrame
+    fig, ax = plot_xy_symmetric(data=captures_df, 
+                                figsize=figsize, 
+                                title=title,
+                                fontsize=fontsize,
+                                colors=colors,
+                                markers=markers)
     
     return fig, ax
 

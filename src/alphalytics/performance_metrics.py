@@ -7,6 +7,140 @@ from .utils import fill_first_nan  # Import from utils module
 
 
 
+# ============== RETURNS FUNCTIONS ============== #
+
+def return_n(rets: pd.DataFrame, n: int) -> pd.Series:
+    """
+    Calculates the cumulative trailing return over the last 'n' periods.
+    """
+    if len(rets) < n:
+        return pd.Series(np.nan, index=rets.columns)
+        
+    ret_n = (rets.iloc[-n:] + 1).prod() - 1
+    ret_n.name = f"{n} Period"
+    return ret_n
+
+def return_ytd(rets: pd.DataFrame) -> pd.Series:
+    """
+    Calculates YTD return using the calendar year of the last available date.
+    Assumes rets has a DatetimeIndex.
+    """
+    if rets.empty: 
+        return pd.Series(0.0, index=rets.columns)
+    
+    # Identify the current year based on the very last data point
+    current_year = rets.index[-1].year
+    
+    # Slice only the returns belonging to that year
+    ytd_data = rets[rets.index.year == current_year]
+    
+    # Calculate geometric return for that slice
+    ytd_rets = (ytd_data + 1).prod() - 1
+    ytd_rets.name = "YTD"
+    return ytd_rets
+
+def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -> pd.Series:
+    """
+    Calculates the annualized trailing return over a specific number of years.
+    """
+    assert years >= 1, "Must be at least 1 year to annualize"
+
+    n = years * periods_per_year
+    
+    # Safety check: If history is shorter than requested periods, return NaN
+    if len(rets) < n:
+        return pd.Series(np.nan, index=rets.columns)
+
+    # 1. Calculate cumulative return over the sliced last 'n' periods
+    n_ret = (rets.iloc[-n:] + 1).prod() - 1
+    
+    # 2. Annualize the cumulative return
+    ann_ret = (n_ret + 1) ** (1 / years) - 1
+    ann_ret.name = f"{years} Year"
+    
+    return ann_ret
+
+def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Series:
+    """
+    Calculates the annualized Since Inception return over the COMMON period.
+    Forces an apples-to-apples comparison by only evaluating dates where 
+    all strategies in the DataFrame have overlapping data.
+    """
+    if rets.empty:
+        return pd.Series(np.nan, index=rets.columns)
+        
+    # 1. Align data: Keep only dates where ALL columns have data
+    aligned_rets = rets.dropna()
+    
+    total_periods = len(aligned_rets)
+    
+    # 2. Safety Check: Ensure the overlapping period is at least 1 year
+    if total_periods < periods_per_year:
+        raise ValueError("The overlapping 'apples-to-apples' history is less than 1 year. Cannot annualize.")
+        
+    years = total_periods / periods_per_year
+    
+    # 3. Calculate total cumulative return over the perfectly aligned period
+    cumret = (aligned_rets + 1).prod() - 1
+    
+    # 4. Annualize based on the exact fractional years of the common period
+    si_ret = (cumret + 1) ** (1 / years) - 1
+    si_ret.name = "SI"
+    
+    return si_ret
+
+def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.DataFrame:
+    """
+    Builds a standard institutional performance table (1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, SI).
+    Forces an apples-to-apples comparison by aligning all dates first.
+    
+    Parameters
+    ----------
+    rets : pd.DataFrame
+        Periodic returns of the strategies.
+    periods_per_year : int, default 12
+        Frequency of the data (12 for monthly, 252 for daily).
+        
+    Returns
+    -------
+    pd.DataFrame
+        A table where rows are strategies and columns are trailing timeframes.
+    """
+    # 1. Align all data to guarantee apples-to-apples comparison
+    aligned_rets = rets.dropna()
+    
+    if aligned_rets.empty:
+        raise ValueError("No common dates found across all strategies.")
+
+    # 2. Calculate individual metrics using your toolkit
+    
+    # 1-Month Return (Safely compounds daily/weekly data if needed)
+    m1_n = int(periods_per_year / 12)
+    m1 = return_n(aligned_rets, m1_n)
+    m1.name = "1M"
+
+    # 3-Month Return
+    m3_n = int(periods_per_year / 4)
+    m3 = return_n(aligned_rets, m3_n) 
+    m3.name = "3M"
+
+    ytd = return_ytd(aligned_rets)
+    yr1 = ann_return(aligned_rets, years=1, periods_per_year=periods_per_year)
+    yr3 = ann_return(aligned_rets, years=3, periods_per_year=periods_per_year)
+    yr5 = ann_return(aligned_rets, years=5, periods_per_year=periods_per_year)
+    yr10 = ann_return(aligned_rets, years=10, periods_per_year=periods_per_year)
+    
+    # 3. Calculate Common SI safely (in case they share less than 1 year)
+    try:
+        si = ann_return_common_si(aligned_rets, periods_per_year=periods_per_year)
+    except ValueError:
+        si = pd.Series(np.nan, index=aligned_rets.columns, name="Common SI")
+        
+    # 4. Concatenate into a single presentation DataFrame
+    perf_table = pd.concat([m1, m3, ytd, yr1, yr3, yr5, yr10, si], axis=1)
+    
+    return perf_table
+
 # ============== PERFORMANCE METRICS ============== #
 
 def cumgrowth(returns: pd.DataFrame) -> pd.DataFrame:
@@ -49,37 +183,6 @@ def cumgrowth(returns: pd.DataFrame) -> pd.DataFrame:
     """
     
     return returns.add(1).cumprod()
-
-def compute_performance_table(returns: pd.DataFrame, periods_per_year: int) -> pd.DataFrame:
-  
-    idxs = {
-        '3M': int(periods_per_year/4),
-        '6M': int(periods_per_year/2),
-        '1Y': periods_per_year,
-        '3Y': periods_per_year*3,
-        '5Y': periods_per_year*5,
-        '10Y': periods_per_year*10
-    }
-    
-    qtr_idx = int(periods_per_year/4)
-    semiannual_idx = int(periods_per_year/2)
-    year1_idx = int(periods_per_year)
-    year3_idx = int(periods_per_year*3)
-    year5_idx = int(periods_per_year*5)
-    year10_idx = int(periods_per_year*10)
-    
-    qtr_ret = qs.stats.comp(returns.iloc[-qtr_idx-1:-1]) 
-    semiannual_ret = qs.stats.comp(returns.iloc[-semiannual_idx-1:-1]) 
-    year1_ret = qs.stats.cagr(returns.iloc[-year1_idx-1:-1]) 
-    year3_ret = qs.stats.cagr(returns.iloc[-year3_idx-1:-1]) 
-    year5_ret = qs.stats.cagr(returns.iloc[-year5_idx-1:-1]) 
-    year10_ret = qs.stats.cagr(returns.iloc[-year10_idx-1:-1]) 
-    si_ret = qs.stats.cagr(returns) 
-
-    performance_table = pd.concat([qtr_ret, semiannual_ret, year1_ret, year3_ret, year5_ret, year10_ret, si_ret], axis = 1)
-    performance_table.columns = ["3M", "6M", "1-Year", "3-Year", "5-Year", "10-Year", "SI"]
-
-    return performance_table
 
 def compute_cumulative_growth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
     """
@@ -238,34 +341,47 @@ def up_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> fl
     Returns:
         float: The ratio (e.g., 1.10 = 110%). Returns np.nan if no up markets occur.
     """
-    # 1. Align data and drop missing values
-    df = pd.DataFrame({
-        'port': portfolio_returns, 
-        'bench': benchmark_returns
-    }).dropna()
+    # 1. Align data securely
+    df = pd.DataFrame({'port': portfolio_returns, 'bench': benchmark_returns}).dropna()
     
-    # 2. Filter for periods where Benchmark was UP (> 0)
+    # 2. Filter for Up markets
     up_market = df[df['bench'] > 0]
-    
-    # 3. Handle edge case: No up markets
-    if len(up_market) == 0:
-        return np.nan
-
     n = len(up_market)
     
-    # 4. Calculate Geometric Mean for UP periods
-    #    Formula: (Product(1 + r)) ^ (1/n) - 1
+    if n == 0:
+        return np.nan
+
+    # 3. Calculate Geometric Mean using native Pandas .prod()
+    port_geo_avg = (1 + up_market['port']).prod() ** (1 / n) - 1
+    bench_geo_avg = (1 + up_market['bench']).prod() ** (1 / n) - 1
     
-    port_geo_avg = (np.prod(1 + up_market['port'])) ** (1 / n) - 1
-    bench_geo_avg = (np.prod(1 + up_market['bench'])) ** (1 / n) - 1
-    
-    # 5. Safety check: Avoid division by zero
+    # 4. Calculate Ratio (multiplied by 100 for percentage scale)
     if bench_geo_avg == 0:
         return np.nan
         
     return port_geo_avg / bench_geo_avg
 
-def batting_averages(returns, benchmark):
+def capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
+    """Calculates Up and Down capture ratios for multiple strategies."""
+    
+    # Align data to drop mismatched dates
+    data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
+    
+    # The benchmark is always the last column after concat
+    bench = data.iloc[:, -1]
+    
+    capture_dict = {}
+    for col in data.columns[:-1]:
+        strat = data[col]
+        capture_dict[col] = {
+            "Up Capture": up_capture(strat, bench),
+            "Down Capture": down_capture(strat, bench)
+        }
+        
+    # from_dict with orient='index' avoids the need to transpose (.T)
+    return pd.DataFrame.from_dict(capture_dict, orient='index')
+
+def batting_averages(returns:pd.Series, benchmark:pd.Series):
     """
     Calculates Overall, Up Market, and Down Market Batting Averages.
     
@@ -305,8 +421,9 @@ def batting_averages(returns, benchmark):
     })
 
 
-__all__ = ['compute_prices',
+__all__ = ['return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
+           'cumgrowth',
            'compute_performance_table', 'compute_cumulative_growth',
            'compute_forward_returns', 'compute_capm',
-           'down_capture', 'up_capture',
+           'down_capture', 'up_capture', "capture_ratios"
            'batting_averages']
