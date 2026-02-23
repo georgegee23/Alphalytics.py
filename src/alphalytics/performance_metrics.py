@@ -265,6 +265,7 @@ def up_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> fl
     return port_geo_avg / bench_geo_avg
 
 def capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
+    
     """Calculates Up and Down capture ratios for multiple strategies."""
     
     # Align data to drop mismatched dates
@@ -281,7 +282,6 @@ def capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series)
             "Down Capture": down_capture(strat, bench)
         }
         
-    # from_dict with orient='index' avoids the need to transpose (.T)
     return pd.DataFrame.from_dict(capture_dict, orient='index')
 
 def batting_averages(returns:pd.Series, benchmark:pd.Series):
