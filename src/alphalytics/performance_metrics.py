@@ -144,45 +144,63 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 
 # ============== RISK & RETURN METRICS ============== #
 
-def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataFrame:
-
-    # Validate inputs
+def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 252) -> pd.DataFrame:
+    """
+    Calculates CAPM Beta and Annualized Alpha for multiple strategies simultaneously.
+    
+    Args:
+        returns (pd.DataFrame): Periodic returns of the strategies.
+        benchmark (pd.Series, optional): Periodic returns of the benchmark. 
+                                         Defaults to an equal-weight average of all strategies.
+        annualization_factor (int): Periods per year (e.g., 252 for daily, 12 for monthly). 
+                                    Defaults to 252 (daily trading days).
+        
+    Returns:
+        pd.DataFrame: A summary table with Beta, Periodic Alpha, and Annualized Alpha for each strategy.
+    """
+    # 1. Validate inputs
     if not isinstance(returns, pd.DataFrame):
-        raise TypeError("quantile_returns must be a pandas DataFrame")
+        raise TypeError("returns must be a pandas DataFrame")
         
     if returns.empty:
-        raise ValueError("quantile_returns cannot be empty")
+        raise ValueError("returns cannot be empty")
 
-    # Set default benchmark if not provided
     if benchmark is None:
         benchmark = returns.mean(axis=1)
-        benchmark.name = "Equal-Weighted Benchmark"
+        benchmark.name = "Benchmark"
     elif not isinstance(benchmark, pd.Series):
         raise TypeError("benchmark must be a pandas Series")
-        
-    # Ensure matching indices
-    if not returns.index.equals(benchmark.index):
-        raise ValueError("quantile_returns and benchmark must have matching indices")
 
-    # Calculate CAPM metrics for each quantile
-    capm_results = []
+    # 2. Align data and handle missing values naturally
+    data = returns.copy()
+    data['bench_'] = benchmark
+    data = data.dropna()
     
-    for col in returns.columns:
-        try:
-            beta, alpha = qs.stats.greeks(
-                returns=returns[col],
-                benchmark=benchmark
-            )
-            capm_results.append({
-                "Asset": col,
-                "Beta": beta,
-                "Alpha": alpha
-            })
-        except Exception as e:
-            raise RuntimeError(f"Error calculating CAPM for {col}: {str(e)}")
-
-    # Create formatted DataFrame
-    capm_df = pd.DataFrame(capm_results).set_index("Asset")
+    aligned_returns = data.drop(columns=['bench_'])
+    aligned_bench = data['bench_']
+    
+    # 3. Vectorized CAPM Math
+    returns_centered = aligned_returns - aligned_returns.mean()
+    bench_centered = aligned_bench - aligned_bench.mean()
+    
+    dof = len(data) - 1
+    covariances = (returns_centered.mul(bench_centered, axis=0)).sum() / dof
+    bench_variance = aligned_bench.var(ddof=1) 
+    
+    # Calculate Beta
+    betas = covariances / bench_variance
+    
+    # Calculate Periodic Alpha, then Annualize it
+    # Annualized Alpha = Periodic Alpha * Periods per Year
+    periodic_alphas = aligned_returns.mean() - (betas * aligned_bench.mean())
+    annualized_alphas = periodic_alphas * periods_per_year
+    
+    # 4. Format Output
+    capm_df = pd.DataFrame({
+        "Beta": betas,
+        "Periodic Alpha": periodic_alphas,
+        "Annualized Alpha": annualized_alphas
+    })
     
     return capm_df
 
