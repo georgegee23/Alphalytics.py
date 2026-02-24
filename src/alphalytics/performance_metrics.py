@@ -189,23 +189,22 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None) -> pd.DataF
 
  # ============== THE END ============== #     
 
-def down_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+def down_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
     """
     Calculates the Down Capture Ratio using the Geometric Mean method.
     
     Args:
-        portfolio_returns (pd.Series): Periodic returns (e.g., monthly) of the strategy.
+        portfolio_returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
         benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
         
     Returns:
-        float: The ratio (e.g., 0.95 = 95%). Returns np.nan if no down markets occur.
+        pd.Series: The ratios (e.g., 0.95 = 95%) for each strategy. Returns np.nan if no down markets occur.
     """
     # 1. Align data (intersection of dates) and drop missing values
     #    This ensures we only compare periods where both have data.
-    df = pd.DataFrame({
-        'port': portfolio_returns, 
-        'bench': benchmark_returns
-    }).dropna()
+    df = portfolio_returns.copy()
+    df['bench'] = benchmark_returns
+    df = df.dropna()
     
     # 2. Filter for periods where Benchmark was strictly DOWN (< 0)
     #    Standard practice is < 0, but some use <= 0.
@@ -213,76 +212,101 @@ def down_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> 
     
     # 3. Handle edge case: No down markets
     if len(down_market) == 0:
-        return np.nan
+        return pd.Series(np.nan, index=portfolio_returns.columns)
 
     n = len(down_market)
 
     # 4. Calculate Geometric Mean (Compound Annual Growth Rate style) for down periods
     #    Formula: (Product(1 + r)) ^ (1/n) - 1
-    #    Note: This accurately captures the compounding pain of losses.
+    #    Note: axis=0 ensures we calculate the product down each column simultaneously.
     
-    port_geo_avg = (np.prod(1 + down_market['port'])) ** (1 / n) - 1
+    port_geo_avg = (np.prod(1 + down_market[portfolio_returns.columns], axis=0)) ** (1 / n) - 1
     bench_geo_avg = (np.prod(1 + down_market['bench'])) ** (1 / n) - 1
     
     # 5. Calculate Ratio
     #    Safety check: Ensure benchmark average is not 0 (unlikely given filter < 0)
     if bench_geo_avg == 0:
-        return np.nan
+        return pd.Series(np.nan, index=portfolio_returns.columns)
         
     ratio = port_geo_avg / bench_geo_avg
     
     return ratio
 
-def up_capture(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
+def up_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
     """
-    Calculates the Up Capture Ratio (Geometric Mean method).
+    Calculates the Up Capture Ratio using the Geometric Mean method.
     
     Args:
-        portfolio_returns (pd.Series): Periodic returns of the strategy.
+        portfolio_returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
+        benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
+        
+    Returns:
+        pd.Series: The ratios (e.g., 1.05 = 105%) for each strategy. Returns np.nan if no up markets occur.
+    """
+    # 1. Align data (intersection of dates) and drop missing values
+    #    This ensures we only compare periods where both have data.
+    df = portfolio_returns.copy()
+    df['bench'] = benchmark_returns
+    df = df.dropna()
+    
+    # 2. Filter for periods where Benchmark was strictly UP (> 0)
+    #    Standard practice is > 0, but some use >= 0.
+    up_market = df[df['bench'] > 0]
+    
+    # 3. Handle edge case: No up markets
+    if len(up_market) == 0:
+        return pd.Series(np.nan, index=portfolio_returns.columns)
+
+    n = len(up_market)
+
+    # 4. Calculate Geometric Mean (Compound Annual Growth Rate style) for up periods
+    #    Formula: (Product(1 + r)) ^ (1/n) - 1
+    #    Note: axis=0 ensures we calculate the product up each column simultaneously.
+    
+    port_geo_avg = (np.prod(1 + up_market[portfolio_returns.columns], axis=0)) ** (1 / n) - 1
+    bench_geo_avg = (np.prod(1 + up_market['bench'])) ** (1 / n) - 1
+    
+    # 5. Calculate Ratio
+    #    Safety check: Ensure benchmark average is not 0 (unlikely given filter > 0)
+    if bench_geo_avg == 0:
+        return pd.Series(np.nan, index=portfolio_returns.columns)
+        
+    ratio = port_geo_avg / bench_geo_avg
+    
+    return ratio
+
+def capture_ratios(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
+    """
+    Calculates Up Capture, Down Capture, and Capture Spread for multiple strategies.
+    
+    Args:
+        portfolio_returns (pd.DataFrame): Periodic returns of the strategies.
         benchmark_returns (pd.Series): Periodic returns of the benchmark.
         
     Returns:
-        float: The ratio (e.g., 1.10 = 110%). Returns np.nan if no up markets occur.
+        pd.DataFrame: A summary table with strategies as rows and capture metrics as columns.
     """
-    # 1. Align data securely
-    df = pd.DataFrame({'port': portfolio_returns, 'bench': benchmark_returns}).dropna()
     
-    # 2. Filter for Up markets
-    up_market = df[df['bench'] > 0]
-    n = len(up_market)
+    # 1. Calculate ratios using our vectorized functions
+    # (These functions already handle the date alignment and dropna internally!)
+    up = up_capture(portfolio_returns, benchmark_returns)
+    down = down_capture(portfolio_returns, benchmark_returns)
     
-    if n == 0:
-        return np.nan
-
-    # 3. Calculate Geometric Mean using native Pandas .prod()
-    port_geo_avg = (1 + up_market['port']).prod() ** (1 / n) - 1
-    bench_geo_avg = (1 + up_market['bench']).prod() ** (1 / n) - 1
+    # 2. Combine into a clean summary DataFrame
+    summary_df = pd.DataFrame({
+        "Up Capture": up,
+        "Down Capture": down
+    })
     
-    # 4. Calculate Ratio (multiplied by 100 for percentage scale)
-    if bench_geo_avg == 0:
-        return np.nan
-        
-    return port_geo_avg / bench_geo_avg
-
-def capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
+    # 3. Add Capture Spread (Up Capture - Down Capture)
+    # A positive spread indicates the manager adds value across full market cycles.
+    summary_df["Capture Spread"] = summary_df["Up Capture"] - summary_df["Down Capture"]
     
-    """Calculates Up and Down capture ratios for multiple strategies."""
+    # 4. Add Overall Capture Ratio (Up Capture / Down Capture)
+    # A ratio > 1.0 generally implies a favorable asymmetric return profile.
+    summary_df["Overall Ratio"] = summary_df["Up Capture"] / summary_df["Down Capture"]
     
-    # Align data to drop mismatched dates
-    data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
-    
-    # The benchmark is always the last column after concat
-    bench = data.iloc[:, -1]
-    
-    capture_dict = {}
-    for col in data.columns:
-        strat = data[col]
-        capture_dict[col] = {
-            "Up Capture": up_capture(strat, bench),
-            "Down Capture": down_capture(strat, bench)
-        }
-        
-    return pd.DataFrame.from_dict(capture_dict, orient='index')
+    return summary_df
 
 def batting_averages(returns:pd.Series, benchmark:pd.Series):
     """
