@@ -144,7 +144,7 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 
 # ============== RISK & RETURN METRICS ============== #
 
-def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 252) -> pd.DataFrame:
+def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 12) -> pd.DataFrame:
     """
     Calculates CAPM Beta and Annualized Alpha for multiple strategies simultaneously.
     
@@ -397,7 +397,7 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
 
     return batting_df
 
-def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_year: int = 252) -> pd.DataFrame:
+def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_year: int = 12) -> pd.DataFrame:
 
     """
     Calculates Annualized Active Return, Tracking Error, and Information Ratio
