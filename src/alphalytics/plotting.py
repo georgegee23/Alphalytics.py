@@ -701,7 +701,7 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     """
 
     # Compute Capture Dataframe
-    captures_df = capture_ratios(strategy_returns, benchmark_returns)
+    captures_df = capture_ratios(strategy_returns, benchmark_returns)[["Up Capture", "Down Capture"]]
 
     # Plot Capture DataFrame
     fig, ax = plot_xy_symmetric(data=captures_df, 
