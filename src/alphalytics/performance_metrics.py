@@ -207,12 +207,12 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
 
  # ============== THE END ============== #     
 
-def down_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
+def down_capture(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
     """
     Calculates the Down Capture Ratio using the Geometric Mean method.
     
     Args:
-        portfolio_returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
+        returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
         benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
         
     Returns:
@@ -220,7 +220,7 @@ def down_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) 
     """
     # 1. Align data (intersection of dates) and drop missing values
     #    This ensures we only compare periods where both have data.
-    df = portfolio_returns.copy()
+    df = returns.copy()
     df['bench'] = benchmark_returns
     df = df.dropna()
     
@@ -230,7 +230,7 @@ def down_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) 
     
     # 3. Handle edge case: No down markets
     if len(down_market) == 0:
-        return pd.Series(np.nan, index=portfolio_returns.columns)
+        return pd.Series(np.nan, index=returns.columns)
 
     n = len(down_market)
 
@@ -238,24 +238,24 @@ def down_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) 
     #    Formula: (Product(1 + r)) ^ (1/n) - 1
     #    Note: axis=0 ensures we calculate the product down each column simultaneously.
     
-    port_geo_avg = (np.prod(1 + down_market[portfolio_returns.columns], axis=0)) ** (1 / n) - 1
+    port_geo_avg = (np.prod(1 + down_market[returns.columns], axis=0)) ** (1 / n) - 1
     bench_geo_avg = (np.prod(1 + down_market['bench'])) ** (1 / n) - 1
     
     # 5. Calculate Ratio
     #    Safety check: Ensure benchmark average is not 0 (unlikely given filter < 0)
     if bench_geo_avg == 0:
-        return pd.Series(np.nan, index=portfolio_returns.columns)
+        return pd.Series(np.nan, index=returns.columns)
         
     ratio = port_geo_avg / bench_geo_avg
     
     return ratio
 
-def up_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
+def up_capture(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
     """
     Calculates the Up Capture Ratio using the Geometric Mean method.
     
     Args:
-        portfolio_returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
+        returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
         benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
         
     Returns:
@@ -263,7 +263,7 @@ def up_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) ->
     """
     # 1. Align data (intersection of dates) and drop missing values
     #    This ensures we only compare periods where both have data.
-    df = portfolio_returns.copy()
+    df = returns.copy()
     df['bench'] = benchmark_returns
     df = df.dropna()
     
@@ -273,7 +273,7 @@ def up_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) ->
     
     # 3. Handle edge case: No up markets
     if len(up_market) == 0:
-        return pd.Series(np.nan, index=portfolio_returns.columns)
+        return pd.Series(np.nan, index=returns.columns)
 
     n = len(up_market)
 
@@ -281,24 +281,24 @@ def up_capture(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) ->
     #    Formula: (Product(1 + r)) ^ (1/n) - 1
     #    Note: axis=0 ensures we calculate the product up each column simultaneously.
     
-    port_geo_avg = (np.prod(1 + up_market[portfolio_returns.columns], axis=0)) ** (1 / n) - 1
+    port_geo_avg = (np.prod(1 + up_market[returns.columns], axis=0)) ** (1 / n) - 1
     bench_geo_avg = (np.prod(1 + up_market['bench'])) ** (1 / n) - 1
     
     # 5. Calculate Ratio
     #    Safety check: Ensure benchmark average is not 0 (unlikely given filter > 0)
     if bench_geo_avg == 0:
-        return pd.Series(np.nan, index=portfolio_returns.columns)
+        return pd.Series(np.nan, index=returns.columns)
         
     ratio = port_geo_avg / bench_geo_avg
     
     return ratio
 
-def capture_ratios(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
+def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
     """
     Calculates Up Capture, Down Capture, and Capture Spread for multiple strategies.
     
     Args:
-        portfolio_returns (pd.DataFrame): Periodic returns of the strategies.
+        returns (pd.DataFrame): Periodic returns of the strategies.
         benchmark_returns (pd.Series): Periodic returns of the benchmark.
         
     Returns:
@@ -307,8 +307,8 @@ def capture_ratios(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series
     
     # 1. Calculate ratios using our vectorized functions
     # (These functions already handle the date alignment and dropna internally!)
-    up = up_capture(portfolio_returns, benchmark_returns)
-    down = down_capture(portfolio_returns, benchmark_returns)
+    up = up_capture(returns, benchmark_returns)
+    down = down_capture(returns, benchmark_returns)
     
     # 2. Combine into a clean summary DataFrame
     summary_df = pd.DataFrame({
@@ -326,44 +326,145 @@ def capture_ratios(portfolio_returns: pd.DataFrame, benchmark_returns: pd.Series
     
     return summary_df
 
-def batting_averages(returns:pd.Series, benchmark:pd.Series):
+def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     """
-    Calculates Overall, Up Market, and Down Market Batting Averages.
+    Calculates Overall, Up Market, and Down Market Batting Averages for multiple strategies.
     
-    Parameters:
-    - returns (pd.Series): The strategy returns.
-    - benchmark (pd.Series): The benchmark returns.
+    IMPORTANT: All metrics are computed on the COMMON overlapping period only
+    (i.e., dates where EVERY strategy AND the benchmark have valid returns).
+    This guarantees perfect comparability across strategies.
     
+    Batting Average is the percentage of periods where the strategy outperformed the benchmark,
+    expressed as a decimal (e.g., 0.65 for 65%). Up/Down markets exclude periods where benchmark == 0.
+    
+    Args:
+        returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
+        benchmark (pd.Series): Periodic returns of the benchmark.
+        
     Returns:
-    - pd.Series: Containing the three batting average metrics.
+        pd.DataFrame: Summary table with the three batting average metrics per strategy.
     """
-    # Ensure inputs are aligned by index (dates) and drop missing data
-    data = pd.concat([returns, benchmark], axis=1).dropna()
-    r = data.iloc[:, 0]  # Strategy
-    b = data.iloc[:, 1]  # Benchmark
+    # 1. Input validation
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError("returns must be a pandas DataFrame")
+    if not isinstance(benchmark, pd.Series):
+        raise TypeError("benchmark must be a pandas Series")
 
-    # 1. Overall Batting Average: % of time Strategy > Benchmark
-    batting_avg = (r > b).mean()
+    # 2. Align on index + keep only common valid dates
+    data = returns.copy()
+    data["bench_"] = benchmark                    # pandas aligns automatically
+    data = data.dropna(how="any")                 # drop row if ANY NaN present
 
-    # 2. Up Market Batting Average: % of time Strategy > Benchmark (when Benchmark > 0)
-    up_market_mask = b > 0
-    if up_market_mask.sum() > 0:
-        up_batting_avg = (r[up_market_mask] > b[up_market_mask]).mean()
+    if data.empty:
+        # No overlapping data at all
+        return pd.DataFrame(
+            {
+                "Overall Batting Avg": np.nan,
+                "Up Market Batting Avg": np.nan,
+                "Down Market Batting Avg": np.nan,
+            },
+            index=returns.columns,
+        )
+
+    aligned_returns = data[returns.columns]       # or data.drop(columns=["bench_"])
+    aligned_bench = data["bench_"]
+
+    # 3. Overall Batting Average: % of time Strategy > Benchmark
+    overall_avg = aligned_returns.gt(aligned_bench, axis=0).mean()
+
+    # 4. Up Market Batting Average: % of time Strategy > Benchmark (when Bench > 0)
+    up_mask = aligned_bench > 0
+    if up_mask.sum() > 0:
+        up_avg = aligned_returns.loc[up_mask].gt(aligned_bench.loc[up_mask], axis=0).mean()
     else:
-        up_batting_avg = None # Handle case with no up markets
+        up_avg = pd.Series(np.nan, index=aligned_returns.columns)
 
-    # 3. Down Market Batting Average: % of time Strategy > Benchmark (when Benchmark < 0)
-    down_market_mask = b < 0
-    if down_market_mask.sum() > 0:
-        down_batting_avg = (r[down_market_mask] > b[down_market_mask]).mean()
+    # 5. Down Market Batting Average: % of time Strategy > Benchmark (when Bench < 0)
+    down_mask = aligned_bench < 0
+    if down_mask.sum() > 0:
+        down_avg = aligned_returns.loc[down_mask].gt(aligned_bench.loc[down_mask], axis=0).mean()
     else:
-        down_batting_avg = None # Handle case with no down markets
+        down_avg = pd.Series(np.nan, index=aligned_returns.columns)
 
-    return pd.Series({
-        "Average": batting_avg,
-        "Up Market": up_batting_avg,
-        "Down Market": down_batting_avg
-    })
+    # 6. Final table
+    batting_df = pd.DataFrame(
+        {
+            "Overall Batting Avg": overall_avg,
+            "Up Market Batting Avg": up_avg,
+            "Down Market Batting Avg": down_avg,
+        }
+    )
+
+    return batting_df
+
+def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_year: int = 252) -> pd.DataFrame:
+
+    """
+    Calculates Annualized Active Return, Tracking Error, and Information Ratio
+    for multiple strategies simultaneously.
+    
+    IMPORTANT: All metrics are computed on the COMMON overlapping period only
+    (i.e. dates where EVERY strategy AND the benchmark have valid returns).
+    This guarantees perfect comparability across strategies.
+    
+    Args:
+        returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
+        benchmark (pd.Series): Periodic returns of the benchmark.
+        periods_per_year (int): Periods per year (252 daily, 12 monthly, etc.).
+        
+    Returns:
+        pd.DataFrame: Summary table with the three annualized metrics per strategy.
+    """
+    # 1. Input validation
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError("returns must be a pandas DataFrame")
+    if not isinstance(benchmark, pd.Series):
+        raise TypeError("benchmark must be a pandas Series")
+
+    # 2. Align on index + keep only common valid dates
+    data = returns.copy()
+    data["bench_"] = benchmark                    # pandas aligns automatically
+    data = data.dropna(how="any")                 # drop row if ANY NaN present
+
+    if data.empty:
+        # No overlapping data at all
+        return pd.DataFrame(
+            {
+                "Ann. Active Return": np.nan,
+                "Ann. Tracking Error": np.nan,
+                "Information Ratio": np.nan,
+            },
+            index=returns.columns,
+        )
+
+    aligned_returns = data[returns.columns]       # or data.drop(columns=["bench_"])
+    aligned_bench = data["bench_"]
+
+    # 3. Periodic active returns
+    active_returns = aligned_returns.sub(aligned_bench, axis=0)
+
+    # 4. Periodic statistics
+    periodic_active_return = active_returns.mean()
+    periodic_tracking_error = active_returns.std(ddof=1)
+
+    # 5. Annualize
+    ann_active_return = periodic_active_return * periods_per_year
+    ann_tracking_error = periodic_tracking_error * np.sqrt(periods_per_year)
+
+    # 6. Information Ratio (safe against perfect tracking)
+    safe_te = ann_tracking_error.replace(0, np.nan)
+    info_ratio = ann_active_return / safe_te
+
+    # 7. Final table
+    ir_df = pd.DataFrame(
+        {
+            "Ann. Active Return": ann_active_return,
+            "Ann. Tracking Error": ann_tracking_error,
+            "Information Ratio": info_ratio,
+        }
+    )
+
+    return ir_df
 
 
 # ============== PERFORMANCE METRICS ============== #
@@ -473,4 +574,4 @@ __all__ = ['return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'perf
            'compute_performance_table', 'compute_cumulative_growth',
            'compute_forward_returns', 'compute_capm',
            'down_capture', 'up_capture', "capture_ratios"
-           'batting_averages']
+           'batting_averages', 'information_ratio']
