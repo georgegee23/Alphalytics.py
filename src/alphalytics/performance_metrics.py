@@ -144,6 +144,158 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 
 # ============== RISK & RETURN METRICS ============== #
 
+def downside_variance(returns: pd.DataFrame, mar: float = 0.0, ddof: int = 1,) -> pd.Series:
+    """
+    Downside variance for each strategy — volatility of returns below the MAR.
+
+    Only penalizes returns that fall below the Minimum Acceptable Return (MAR).
+    The denominator is total observations (not just downside periods),
+    consistent with the Sortino ratio convention.
+
+    Args:
+        returns (pd.DataFrame): Periodic returns, one column per strategy.
+        mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+
+    Returns:
+        pd.Series: Downside variance per strategy, indexed by strategy name.
+        NaN when observations are insufficient (n <= ddof or n == 0).
+
+    Raises:
+        TypeError: If returns is not a pd.DataFrame.
+    """
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
+
+    n_obs = len(returns)
+    insufficient_data = n_obs == 0 or n_obs <= ddof
+    if insufficient_data:
+        return pd.Series(np.nan, index=returns.columns)
+
+    # Clip positive deviations to 0 — only penalize returns below MAR
+    downside_deviations = (returns - mar).clip(upper=0)
+
+    return (downside_deviations ** 2).sum() / (n_obs - ddof)
+
+def sortino_ratio(returns: pd.DataFrame, mar: float = 0.0, periods_per_year: int = 12, ddof: int = 1) -> pd.Series:
+    """
+    Annualized Sortino Ratio for each strategy.
+
+    Improves on the Sharpe Ratio by penalizing only downside volatility,
+    making it more appropriate for strategies with asymmetric return distributions.
+
+    Annualization: mean excess return scaled by periods_per_year,
+    downside deviation scaled by sqrt(periods_per_year).
+
+    Args:
+        returns (pd.DataFrame): Periodic returns, one column per strategy.
+        mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
+        periods_per_year (int): Annualization factor (12 = monthly, 252 = daily).
+        ddof (int): Degrees of freedom for downside variance. Defaults to 1.
+
+    Returns:
+        pd.Series: Annualized Sortino Ratio per strategy.
+        NaN when downside deviation is zero or undefined.
+
+    Raises:
+        TypeError: If returns is not a pd.DataFrame.
+    """
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
+
+    down_dev = np.sqrt(downside_variance(returns, mar=mar, ddof=ddof))
+    down_dev = down_dev.replace(0, np.nan)  # guard: strategy never fell below MAR
+
+    mean_excess_return = returns.mean() - mar
+
+    # Calculate the ratio and annualize
+    # Note: We scale the final ratio by the square root of periods_per_year
+    sortino = (mean_excess_return / down_dev) * np.sqrt(periods_per_year)
+
+    # Annualize: numerator scales linearly, denominator scales by √periods_per_year
+    return sortino
+
+def beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.Series:
+    """
+    Calculates beta for multiple strategies against a benchmark.
+
+    Beta = Cov(Strategy, Benchmark) / Var(Benchmark) using sample statistics (ddof=1).
+    Requires at least 2 observations; otherwise returns NaN for each strategy.
+
+    Args:
+        returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
+        benchmark (pd.Series): Periodic returns of the benchmark.
+
+    Returns:
+        pd.Series: Beta for each strategy.
+
+    Raises:
+        ValueError: If returns and benchmark do not share the same index.
+    """
+    if not returns.index.equals(benchmark.index):
+        raise ValueError(
+            "returns and benchmark must share the same index. "
+            "Align them before calling calculate_beta()."
+        )
+
+    if len(benchmark) < 2:
+        return pd.Series(np.nan, index=returns.columns)
+
+    bm_variance = benchmark.var(ddof=1)
+
+    if bm_variance == 0:
+        return pd.Series(np.nan, index=returns.columns)
+
+    ret_centered = returns - returns.mean()
+    bm_centered = benchmark - benchmark.mean()
+
+    covariances = ret_centered.mul(bm_centered, axis=0).sum() / (len(benchmark) - 1)
+
+    return covariances / bm_variance
+
+def bull_bear_beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
+    """
+    Bull Market Beta (benchmark > 0) and Bear Market Beta (benchmark < 0)
+    for each strategy.
+
+    Computed on the common overlapping period only, so all strategies are
+    comparable. Zero-return benchmark periods are excluded from both regimes.
+    NaN is returned for a regime with fewer than 2 observations.
+
+    Args:
+        returns (pd.DataFrame): Periodic returns, one column per strategy.
+        benchmark (pd.Series): Periodic benchmark returns.
+
+    Returns:
+        pd.DataFrame: Bull Beta and Bear Beta per strategy (index = strategy names).
+
+    Raises:
+        TypeError: If inputs are not the expected pandas types.
+    """
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
+    if not isinstance(benchmark, pd.Series):
+        raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
+
+    combined = pd.concat([returns, benchmark.rename("__benchmark__")], axis=1).dropna()
+
+    if combined.empty:
+        return pd.DataFrame(
+            {"Bull Beta": np.nan, "Bear Beta": np.nan},
+            index=returns.columns,
+        )
+
+    aligned_returns = combined[returns.columns]
+    aligned_bench   = combined["__benchmark__"]
+
+    bull_periods = aligned_bench > 0
+    bear_periods = aligned_bench < 0
+
+    bull_beta = beta(aligned_returns[bull_periods], aligned_bench[bull_periods])
+    bear_beta = beta(aligned_returns[bear_periods], aligned_bench[bear_periods])
+
+    return pd.DataFrame({"Bull Beta": bull_beta, "Bear Beta": bear_beta})
+
 def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 12) -> pd.DataFrame:
     """
     Calculates CAPM Beta and Annualized Alpha for multiple strategies simultaneously.
@@ -322,7 +474,7 @@ def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Da
     
     # 4. Add Overall Capture Ratio (Up Capture / Down Capture)
     # A ratio > 1.0 generally implies a favorable asymmetric return profile.
-    summary_df["Overall Ratio"] = summary_df["Up Capture"] / summary_df["Down Capture"]
+    summary_df["Overall Capture"] = summary_df["Up Capture"] / summary_df["Down Capture"]
     
     return summary_df
 
@@ -566,6 +718,30 @@ def compute_forward_returns(returns: pd.DataFrame, forward_periods: int) -> pd.D
     forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
 
     return forward_returns
+
+# ============== ROLLING METRICS ================== #
+
+def rolling_beta(returns: pd.DataFrame, benchmark: pd.Series, window: int = 12) -> pd.DataFrame:
+    """
+    Calculates rolling beta using native vectorized pandas methods.
+    Mathematically identical to Cov(R, B) / Var(B) with ddof=1.
+    """
+    # 1. Align data
+    combined = pd.concat([returns, benchmark.rename("__benchmark__")], axis=1).dropna()
+    aligned_returns = combined[returns.columns]
+    aligned_bench = combined["__benchmark__"]
+    
+    # 2. Vectorized rolling covariance and variance
+    # pandas smartly broadcasts the benchmark Series against every column in the DataFrame
+    rolling_cov = aligned_returns.rolling(window=window).cov(aligned_bench)
+    rolling_var = aligned_bench.rolling(window=window).var()
+    
+    # 3. Divide to get rolling beta (div(axis=0) ensures correct date alignment)
+    rolling_betas = rolling_cov.div(rolling_var, axis=0)
+    rolling_betas[rolling_var == 0] = np.nan  # guard flat-benchmark windows
+    
+    return rolling_betas
+
 
 
 

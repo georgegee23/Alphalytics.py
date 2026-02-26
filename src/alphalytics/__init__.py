@@ -21,12 +21,16 @@ from .ic_analysis import cs_spearmanr, ts_spearmanr, compute_ic_stats, factor_de
 from .quantile_analysis import to_quantiles, compute_quantile_returns, get_quantile_holdings, \
     compute_mean_quantile_forward_return, fwd_quantile_stats
 
-from .turnover_analysis import calculate_autocorrelation, compute_factor_autocorr, compute_quantile_turnover, compute_quantiles_turnover
+from .turnover_analysis import calculate_autocorrelation, compute_factor_autocorr, compute_quantile_turnover, \
+    compute_quantiles_turnover
 
 from .performance_metrics import return_n, return_ytd, ann_return, ann_return_common_si, performance_table, \
-    cumgrowth, compute_cumulative_growth, compute_forward_returns, \
-    compute_capm, batting_averages, \
-    down_capture, up_capture, capture_ratios
+    downside_variance, sortino_ratio, \
+    compute_capm, beta, bull_bear_beta, \
+    information_ratio, batting_averages, \
+    down_capture, up_capture, capture_ratios, \
+    rolling_beta, \
+    cumgrowth, compute_cumulative_growth, compute_forward_returns
     
 
 from .plotting import plot_factor_data, plot_cumulative_performance, plot_quantiles_risk_metrics, plot_quantile_correlations, plot_spearman_rank, \
@@ -42,8 +46,11 @@ __all__ = [
     "calculate_autocorrelation", "compute_factor_autocorr", "compute_quantile_turnover", "compute_quantiles_turnover",
     
     'return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
-    "cumgrowth", "compute_cumulative_growth", "compute_forward_returns", "compute_capm",
-    "down_capture", "up capture", "batting_averages",
+    "downside_variance", "sortino_ratio",
+    "compute_capm", "beta", "bull_bear_beta",
+    "down_capture", "up capture", "capture_ratios",
+    "batting_averages", "information_ratio",
+    "cumgrowth", "compute_cumulative_growth", "compute_forward_returns", 
 
     "plot_factor_data", "plot_cumulative_performance", "plot_quantiles_risk_metrics", "plot_quantile_correlations",
     "plot_spearman_rank", "plot_ic_hist", "qqplot_ic", "plot_ic_summary", "plot_factor_decay", "plot_forward_returns",
