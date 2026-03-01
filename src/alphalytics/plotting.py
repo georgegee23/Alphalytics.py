@@ -1,6 +1,7 @@
 
 import pandas as pd
 import numpy as np
+from typing import Union, List
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
@@ -652,7 +653,7 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
                         figsize=(3, 3), 
                         colors=None, 
                         title='Up vs. Down Market Capture',
-                        fontsize=6,
+                        fontsize=7,
                         markers=['o']):
     """
     High-level wrapper that calculates and plots Up/Down Capture ratios.
@@ -714,11 +715,12 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     
     return fig, ax
 
+
 def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
                           figsize=(3, 3), 
                           colors=['#1f77b4', '#ff7f0e', '#2ca02c'], 
                           title='Batting Average',
-                          font_size=6):
+                          font_size=7):
     """
     Calculates and plots the Batting Average (Win Rate) for Overall, Up, and Down markets.
     
@@ -805,5 +807,57 @@ def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Ser
     plt.tight_layout()
     
     return fig, ax
+
+
+def plot_area(data: Union[pd.Series, pd.DataFrame], kind="area", fig_size=(8.25, 3), 
+              stacked=True, ylim_pad=(0.95, 1.02), tick_fontsize=7, y_fmt=None,
+              colors: Union[List[str], str] = None, **kwargs):
+    """
+    Plot chart with area fill, optimized for both Series and DataFrames, 
+    with support for custom color palettes and keyword arguments.
+    """
+
+    # Calculate ymin and ymax safely, accounting for stacked DataFrames
+    if isinstance(data, pd.DataFrame) and stacked:
+        ymin = data.min().min() * (ylim_pad[1] if data.min().min() < 0 else ylim_pad[0])
+        ymax = data.sum(axis=1).max() * ylim_pad[1]
+    elif isinstance(data, pd.DataFrame):
+        ymin = data.min().min() * (ylim_pad[1] if data.min().min() < 0 else ylim_pad[0])
+        ymax = data.max().max() * ylim_pad[1]
+    else:
+        # Handle pd.Series (Added negative value logic here)
+        ymin = data.min() * (ylim_pad[1] if data.min() < 0 else ylim_pad[0])
+        ymax = data.max() * ylim_pad[1]
+
+    fig, ax = plt.subplots(figsize=fig_size)
+    
+    # Passed **kwargs directly to the pandas plot method
+    data.plot(kind=kind, ax=ax, xlabel="", ylim=(ymin, ymax), 
+              stacked=stacked, color=colors, **kwargs)
+
+    # Remove chart junk
+    for spine in ["top", "right", "left"]:
+        ax.spines[spine].set_visible(False)
+    ax.spines["bottom"].set_color("#DDDDDD")
+
+    # Tick styling
+    ax.tick_params(axis="x", labelsize=tick_fontsize)
+    ax.tick_params(axis="y", labelsize=tick_fontsize)
+
+    # Format y-axis if a format string is provided (e.g., '${x:,.0f}')
+    if y_fmt:
+        ax.yaxis.set_major_formatter(mtick.StrMethodFormatter(y_fmt))
+
+    # Grid
+    ax.grid(axis="y", linestyle="--", alpha=0.5, color="#cccccc")
+    ax.grid(axis="x", visible=False)
+
+    # Clean up the legend if dealing with a DataFrame
+    if isinstance(data, pd.DataFrame):
+        ax.legend(frameon=False, fontsize=tick_fontsize, loc="upper left")
+
+    plt.tight_layout()
+    return fig, ax
+
 
  # ============== THE END ============== #     
