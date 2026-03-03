@@ -802,7 +802,7 @@ def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Ser
     
     # Dynamic positioning for the text (placed near the left edge)
     ax.text(x=ax.get_xlim()[0] + 0.1, y=0.52, s="50% Threshold", 
-            color='gray', fontsize=font_size, ha='left')
+            color='gray', fontsize=font_size, ha='center')
 
     plt.tight_layout()
     
