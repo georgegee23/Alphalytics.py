@@ -799,10 +799,6 @@ def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Ser
 
     # --- 4. Add 50% "Coin Flip" Line ---
     ax.axhline(0.5, color='gray', linestyle='--', alpha=0.5, linewidth=1)
-    
-    # Dynamic positioning for the text (placed near the left edge)
-    ax.text(x=ax.get_xlim()[0] + 0.1, y=0.52, s="50% Threshold", 
-            color='gray', fontsize=font_size, ha='center')
 
     plt.tight_layout()
     
