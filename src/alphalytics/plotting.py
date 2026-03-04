@@ -642,7 +642,7 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     ax.set_ylim(center - max_dist, center + max_dist)
 
     # Move legend to a consistent spot
-    ax.legend(fontsize=fontsize, loc='lower right')
+    ax.legend(fontsize=fontsize, loc='upper left')
 
     plt.tight_layout()
 
