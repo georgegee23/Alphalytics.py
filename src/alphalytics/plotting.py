@@ -500,8 +500,8 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
     
     # 1. Helper function to calculate metrics
     def get_metrics(returns, freq):
-        ann_return = np.mean(returns) * freq
-        ann_volatility = np.std(returns) * np.sqrt(freq)
+        ann_return = float(np.mean(returns)) * freq
+        ann_volatility = float(np.std(returns)) * np.sqrt(freq)
         return ann_volatility, ann_return
 
     # 2. Calculate coordinates
