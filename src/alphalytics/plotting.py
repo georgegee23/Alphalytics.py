@@ -490,6 +490,48 @@ def plot_quantiles_annual_turnover(quantiles:pd.DataFrame, periods_per_year:int,
     plt.show()
 
 
+####### PERFORMANCE VISUALS #######
+
+def plot_growth(returns: pd.DataFrame, initial_value: int = 100,
+    highlight: str = None, figsize: tuple = None,) -> tuple["plt.Figure", "plt.Axes"]:
+    
+    """Plot cumulative growth of one or more return series.
+
+    Compounds periodic returns into a growth-of-investment chart,
+    formatted with dollar values on the y-axis.
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        Periodic returns with a DatetimeIndex. Each column is a separate series.
+    initial_value : int, optional
+        Starting investment amount in dollars. Default is 100.
+    highlight : str, optional
+        Column name to emphasize. All other series are dimmed to 30% opacity.
+    figsize : tuple, optional
+        Figure dimensions (width, height) in inches. Falls back to style default.
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        The matplotlib Figure and Axes objects for further customization.
+    """
+
+    cumgrowth = (returns + 1).cumprod() * initial_value
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for col in cumgrowth.columns:
+        alpha = 0.3 if highlight and col != highlight else 1.0
+        ax.plot(cumgrowth.index, cumgrowth[col], label=col, alpha=alpha)
+
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    ax.legend(loc="best")
+    ax.set_title(f"Growth of ${initial_value:,}")
+    ax.set_xlabel("")
+
+    return fig, ax
+
 def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, periods_per_year=252, 
                      title="Risk-Return Analysis", fig_size=(3, 3), font_size=6, 
                      legend_names=["Strategy", "Benchmark"], colors=["orange", "blue"]):
