@@ -49,7 +49,7 @@ __all__ = [
     'return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
     "downside_variance", "sortino_ratio",
     "compute_capm", "beta", "bull_bear_beta",
-    "down_capture", "up capture", "capture_ratios",
+    "down_capture", "up_capture", "capture_ratios",
     "batting_averages", "information_ratio",
     "cumgrowth", "compute_cumulative_growth", "compute_forward_returns", 
 

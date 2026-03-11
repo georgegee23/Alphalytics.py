@@ -54,7 +54,7 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.xticks(rotation=0, ha='center')
 
     # --- Plot 3: Performance Table ---
-    performance_table= compute_performance_table(returns, periods_per_year)
+    performance_table= performance_table(returns, periods_per_year)
     
     # Format table data as percentages
     table_data = performance_table.map(lambda x: f"{x:.2%}").reset_index()
