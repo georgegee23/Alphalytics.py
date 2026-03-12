@@ -314,7 +314,7 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
     """
     # 1. Validate inputs
     if not isinstance(returns, pd.DataFrame):
-        raise TypeError("returns must be a pandas DataFrame")
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
         
     if returns.empty:
         raise ValueError("returns cannot be empty")
@@ -323,7 +323,7 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
         benchmark = returns.mean(axis=1)
         benchmark.name = "Benchmark"
     elif not isinstance(benchmark, pd.Series):
-        raise TypeError("benchmark must be a pandas Series")
+        raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
 
     # 2. Align data and handle missing values naturally
     data = returns.copy()
@@ -500,9 +500,9 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
     """
     # 1. Input validation
     if not isinstance(returns, pd.DataFrame):
-        raise TypeError("returns must be a pandas DataFrame")
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
     if not isinstance(benchmark, pd.Series):
-        raise TypeError("benchmark must be a pandas Series")
+        raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
 
     # 2. Align on index + keep only common valid dates
     data = returns.copy()
@@ -571,9 +571,9 @@ def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_y
     """
     # 1. Input validation
     if not isinstance(returns, pd.DataFrame):
-        raise TypeError("returns must be a pandas DataFrame")
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}"
     if not isinstance(benchmark, pd.Series):
-        raise TypeError("benchmark must be a pandas Series")
+        raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
 
     # 2. Align on index + keep only common valid dates
     data = returns.copy()

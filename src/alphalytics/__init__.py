@@ -51,6 +51,7 @@ __all__ = [
     "compute_capm", "beta", "bull_bear_beta",
     "down_capture", "up_capture", "capture_ratios",
     "batting_averages", "information_ratio",
+    "rolling_beta",
     "cumgrowth", "compute_forward_returns", 
 
     "plot_factor_data", "plot_cumulative_performance", "plot_quantiles_risk_metrics", 
