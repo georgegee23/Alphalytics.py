@@ -1,8 +1,6 @@
 
 import pandas as pd
 import numpy as np
-from scipy.stats import norm, stats, probplot, ttest_1samp
-
 
 # ============== QUANTILE PERFORMANCE ANALYSIS ============== #
 
@@ -33,7 +31,7 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
     """
     # Input validation
     if not isinstance(factors, pd.DataFrame):
-        raise ValueError("factors must be a pandas DataFrame")
+        raise TypeError(f"factors must be a pd.DataFrame, got {type(factors).__name__}")
     if not isinstance(n_quantiles, int) or n_quantiles <= 0:
         raise ValueError("n_quantiles must be a positive integer")
     if axis not in (0, 1):
@@ -80,8 +78,11 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
         DataFrame with average returns for each quantile, with columns "Q1", "Q2", etc.
     """
     # Input validation
-    if not isinstance(quantiles, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
-        raise ValueError("quantiles and returns must be pandas DataFrames")
+    if not isinstance(quantiles, pd.DataFrame):
+        raise TypeError(f"quantiles must be a pd.DataFrame, got {type(quantiles).__name__}")
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
+    
     if not quantiles.index.equals(returns.index) or not quantiles.columns.equals(returns.columns):
         raise ValueError("quantiles and returns must have the same index and columns")
 

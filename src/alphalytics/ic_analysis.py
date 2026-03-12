@@ -122,8 +122,10 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
     - For inverted factors (expected negative IC), use 'less' alternative or negate factors.
     """
     # Input validation
-    if not isinstance(factors, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
-        raise TypeError("Both factors and returns must be pandas DataFrames")
+    if not isinstance(factors, pd.DataFrame):
+        raise TypeError(f"factors must be a pd.DataFrame, got {type(factors).__name__}")
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
         
     if not factors.index.equals(returns.index):
         raise ValueError("Factors and returns must have the same index")
@@ -245,8 +247,10 @@ def factor_decay(factor: pd.DataFrame,
     - Tests statistical significance using t-test
     """
     # Input validation
-    if not isinstance(factor, pd.DataFrame) or not isinstance(returns, pd.DataFrame):
-        raise TypeError("factor and returns must be pandas DataFrames")
+    if not isinstance(factor, pd.DataFrame):
+        raise TypeError(f"factor must be a pd.DataFrame, got {type(factor).__name__}")
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
     if max_periods < 1:
         raise ValueError("max_lag must be positive")
     if step < 1:
@@ -259,10 +263,10 @@ def factor_decay(factor: pd.DataFrame,
     # Calculate correlations for different lags
     for lag in range(1, max_periods + 1, step):
         # Get returns over lag period
-        df = prices.pct_change(lag, fill_method=None).dropna(how="all")
+        rets = prices.pct_change(lag).dropna(how="all")
         
         # Calculate cross-sectional correlations
-        ic_corrs = cs_spearmanr(df, factor.loc[df.index])
+        ic_corrs = cs_spearmanr(factor.loc[rets.index], rets)
         
         # Test statistical significance
         t_stat, t_pval = ttest_1samp(ic_corrs, popmean=0, alternative=alternative)

@@ -19,12 +19,12 @@ from .turnover_analysis import compute_quantiles_turnover
 # =============== RAW FACTOR DATA ANALYSIS ============== #
 
 def plot_factor_data(factor_data: pd.DataFrame):
-    
+
     fig, ax = plt.subplots(2, 1, figsize=(10, 6))
     factor_data.mean(axis=1).plot(title="Mean Factor Value & Distribution", ax=ax[0], xlabel="", color="black")
     factor_data.mean(axis=1).hist(ax=ax[1], bins=30, color="skyblue")
 
-    return ax
+    return fig, ax
     
 
 
@@ -54,11 +54,11 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.xticks(rotation=0, ha='center')
 
     # --- Plot 3: Performance Table ---
-    performance_table= performance_table(returns, periods_per_year)
+    perf_table= performance_table(returns, periods_per_year)
     
     # Format table data as percentages
-    table_data = performance_table.map(lambda x: f"{x:.2%}").reset_index()
-    table_data.columns = ['Quantile'] + list(performance_table.columns)
+    table_data = perf_table.map(lambda x: f"{x:.2%}").reset_index()
+    table_data.columns = ['Quantile'] + list(perf_table.columns)
     
     # Create table with proper formatting
     ax3.axis('off')
@@ -84,8 +84,8 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     if title:
         fig.suptitle(title, y=1.02)
     plt.tight_layout()
-    plt.show()
 
+    return fig, (ax1, ax2, ax3)
 
 
 def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 52) -> None:
@@ -139,7 +139,7 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Se
     ax4.set_xticklabels(ax4.get_xticklabels(), rotation=0)
 
     ax5 = fig.add_subplot(gs[1, 1])
-    capm_table["Alpha"].plot.bar(ax=ax5, title="Alpha", width=0.8, fontsize=font_size, xlabel="")
+    capm_table["Annualized Alpha"].plot.bar(ax=ax5, title="Annualized Alpha", width=0.8, fontsize=font_size, xlabel="")
     ax5.set_xticklabels(ax5.get_xticklabels(), rotation=0)
 
     ax6 = fig.add_subplot(gs[1, 2])
@@ -169,7 +169,8 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Se
 
     # Adjust layout and display the plot
     plt.tight_layout()
-    plt.show()
+
+    return fig, (ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax_full)
 
 
 def plot_quantile_correlations(returns: pd.DataFrame, title: str = None) -> None:
@@ -231,7 +232,8 @@ def plot_quantile_correlations(returns: pd.DataFrame, title: str = None) -> None
     if title:
         fig.suptitle(title, y=1.02)
     plt.tight_layout()
-    plt.show()
+
+    return fig, (ax1, ax2, ax3)
 
 
 def plot_spearman_rank(spearmanr_ts: pd.Series, window: int, ax = None):
@@ -244,6 +246,7 @@ def plot_spearman_rank(spearmanr_ts: pd.Series, window: int, ax = None):
         fig, ax1 = plt.subplots()
     else:
         ax1 = ax
+        fig = ax1.get_figure()
 
     # Plot the first series on the left y-axis
     ax1.plot(data["Spearman Correlation"], color='skyblue', alpha = 0.7)
@@ -271,7 +274,7 @@ def plot_spearman_rank(spearmanr_ts: pd.Series, window: int, ax = None):
     data2_abs_max = max(abs(data2_max), abs(data2_min))
     ax2.set_ylim(-data2_abs_max, data2_abs_max)
 
-    return ax1
+    return fig, ax1
 
 
 def plot_ic_hist(corr_ts:pd.Series, ax = None):
@@ -285,7 +288,7 @@ def plot_ic_hist(corr_ts:pd.Series, ax = None):
     if ax is None:
         fig, ax = plt.subplots()
     else:
-        ax = ax
+        fig = ax.get_figure()
 
     corr_ts.hist(bins=30, density=True, alpha=0.6, color='skyblue', label='IC Histogram', ax=ax)
 
@@ -304,33 +307,34 @@ def plot_ic_hist(corr_ts:pd.Series, ax = None):
     ax.legend([f'Mean {mean_ic:.3f}\nStd {std_ic:.3f}', 'Normal Fit'], loc='upper left')
     ax.grid(True, linestyle='--', alpha=0.7)
 
-    # Show the plot
-    return ax
+    return fig, ax
 
 
 def qqplot_ic(corr_ts: pd.Series, ax=None):
-    
+
     # Set up the axis
     if ax is None:
         fig, ax = plt.subplots()
-    
+    else:
+        fig = ax.get_figure()
+
     # Create the Q-Q plot directly on the specified axis
     probplot(corr_ts, dist="norm", plot=ax)
-    
+
     # Customize the plot
     ax.set_title('IC Normal Dist. Q-Q')
     ax.set_xlabel('Normal Distribution Quantile')
     ax.set_ylabel('Observed Quantile')
-    
+
     # Customize points and reference line
     ax.get_lines()[0].set_color('skyblue')  # Points
     ax.get_lines()[0].set_marker('o')    # Ensure circular markers
     ax.get_lines()[1].set_color('red')   # Reference line
-    
+
     # Add grid
     ax.grid(True, linestyle='--', alpha=0.7)
-    
-    return ax
+
+    return fig, ax
 
 
 def plot_ic_summary(factors: pd.DataFrame, returns: pd.DataFrame, window: int, 
@@ -349,11 +353,11 @@ def plot_ic_summary(factors: pd.DataFrame, returns: pd.DataFrame, window: int,
     ax3 = fig.add_subplot(gs[1, :])  # Bottom, full width
     
     # Top subplots: Plot mean factors and returns
-    plot_ic_hist(spearmanr_ts, ax = ax1)
-    qqplot_ic(spearmanr_ts, ax  = ax2)
-    
+    _, ax1 = plot_ic_hist(spearmanr_ts, ax = ax1)
+    _, ax2 = qqplot_ic(spearmanr_ts, ax  = ax2)
+
     # Bottom subplot: Spearman rank plot
-    plot_spearman_rank(spearmanr_ts, window=window, ax=ax3)
+    _, ax3 = plot_spearman_rank(spearmanr_ts, window=window, ax=ax3)
     
     # Format and add table
     table_data = corr_stats.apply(lambda x: x.map(lambda y: f"{y:.4f}") if x.dtype.kind in 'if' else x).reset_index()
@@ -378,9 +382,7 @@ def plot_ic_summary(factors: pd.DataFrame, returns: pd.DataFrame, window: int,
     # Adjust layout
     plt.tight_layout()
     plt.subplots_adjust(hspace=0.2)
-    plt.show()
-    
-    
+
     # Return figure and axes array
     return fig, np.array([ax1, ax2, ax3])
 
@@ -414,7 +416,8 @@ def plot_factor_decay(factor_data:pd.DataFrame, returns:pd.DataFrame, max_horizo
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
-    plt.show()
+
+    return fig, ax
 
 def plot_forward_returns(returns: pd.DataFrame, quantiles: pd.DataFrame, periods: list, 
                         periods_label: str = "Days", fig_size: tuple = (10, 6)):
@@ -479,15 +482,17 @@ def plot_forward_returns(returns: pd.DataFrame, quantiles: pd.DataFrame, periods
     # Add main figure title
     plt.suptitle("Quantile Forward Returns Analysis", fontsize=14, y=0.99)
     plt.tight_layout()
-    plt.show()
 
+    return fig, ax
 
 def plot_quantiles_annual_turnover(quantiles:pd.DataFrame, periods_per_year:int, fig_size = (10,4)):
 
     ax = (compute_quantiles_turnover(quantiles).mean() * periods_per_year).plot(kind="bar", title= "Quantiles Turnover", figsize=fig_size, color='black')
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
     ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
-    plt.show()
+    fig = ax.get_figure()
+
+    return fig, ax
 
 
 ####### PERFORMANCE VISUALS #######

@@ -44,7 +44,8 @@ def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -
     """
     Calculates the annualized trailing return over a specific number of years.
     """
-    assert years >= 1, "Must be at least 1 year to annualize"
+    if years < 1:
+        raise ValueError(f"years must be >= 1 to annualize, got {years}")
 
     n = years * periods_per_year
     

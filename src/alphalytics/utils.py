@@ -140,7 +140,7 @@ def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
     """
     # Input validation
     if not isinstance(series, pd.Series):
-        raise TypeError("Input must be a pandas Series")
+        raise TypeError(f"series must be a pd.Series, got {type(series).__name__}")
     
     if len(series) == 0:
         raise ValueError("Series is empty")
