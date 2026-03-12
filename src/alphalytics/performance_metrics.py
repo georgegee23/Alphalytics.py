@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import quantstats as qs
+import warnings
 
 from .utils import fill_first_nan  # Import from utils module
 
@@ -621,79 +622,38 @@ def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_y
 
 # ============== PERFORMANCE METRICS ============== #
 
-def cumgrowth(returns: pd.DataFrame) -> pd.DataFrame:
-  
-    """
-    Compound the returns to compute the cumulative growth factor, assuming a starting value of 1 for each series.
 
-    This function calculates the cumulative product of (1 + returns), which represents the compounded growth
-    over time. Useful for converting periodic returns into an equity curve or price level series in finance.
+def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
+    """Compute cumulative growth from a DataFrame of periodic returns.
 
     Parameters
     ----------
     returns : pd.DataFrame
-        DataFrame with dates as index and assets as columns, containing periodic return values (e.g., 0.05 for 5%).
-        NaN values are preserved and will propagate in the cumulative product, resulting in NaN from the first
-        occurrence onward in each column.
+        Periodic returns in decimal form with a DatetimeIndex.
+    init_value : float, optional
+        Starting value for the growth series. Default is 1.0.
 
     Returns
     -------
     pd.DataFrame
-        DataFrame of the same shape, containing the cumulative compounded values starting from 1, with NaNs propagated.
-
-    Notes
-    -----
-    - Assumes returns are in decimal form.
-    - Cumprod is applied along axis=0 (down the rows, time dimension).
-    - For cumulative returns (not growth factor), subtract 1 from the result.
-    - If you need to start from a different initial value, multiply the result by that value externally.
-    - To treat NaNs as 0% return (no change) instead of propagating, use returns.fillna(0) externally before calling.
-
-    Example
-    -------
-    >>> returns = pd.DataFrame({'Asset1': [0.1, 0.2, np.nan, -0.1]})
-    >>> compound(returns)
-           Asset1
-    0    1.1000
-    1    1.3200
-    2         NaN
-    3         NaN
+        Cumulative growth values, prepended with an initial-value row
+        if the index frequency can be inferred.
     """
-    
-    return returns.add(1).cumprod()
-
-def compute_cumulative_growth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
-    """
-    Compute cumulative growth from returns with an initial value.
-    
-    Args:
-        returns (pd.DataFrame): DataFrame of returns in decimal form
-        init_value (float): Initial value to start growth from (default: 1.0)
-    
-    Returns:
-        pd.DataFrame: DataFrame with cumulative growth values
-    """
-    # Get frequency from index
-    dt_freq = returns.index.inferred_freq
-    
-    # Calculate cumulative growth
     cumulative_growth = (returns + 1).cumprod() * init_value
-    
-    # Create initial row if frequency is valid
+
+    dt_freq = returns.index.inferred_freq
+
     if dt_freq:
-        # Get the date before the first date
         init_dt = returns.index[0] - pd.tseries.frequencies.to_offset(dt_freq)
-        
-        # Create a DataFrame for the initial row with init_value for all columns
-        init_row = pd.DataFrame(
-            init_value,
-            index=[init_dt],
-            columns=returns.columns
-        )
-        
-        # Concatenate initial row with cumulative growth
+        init_row = pd.DataFrame(init_value, index=[init_dt], columns=returns.columns)
         cumulative_growth = pd.concat([init_row, cumulative_growth]).sort_index()
-    
+    else:
+        
+        warnings.warn(
+            "Could not infer index frequency — initial value row not prepended.",
+            stacklevel=2,
+        )
+
     return cumulative_growth
 
 def compute_forward_returns(returns: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
@@ -746,8 +706,8 @@ def rolling_beta(returns: pd.DataFrame, benchmark: pd.Series, window: int = 12) 
 
 
 __all__ = ['return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
-           'cumgrowth',
-           'compute_performance_table', 'compute_cumulative_growth',
+           'cumgrowth', 'compute_cumulative_growth',
            'compute_forward_returns', 'compute_capm',
-           'down_capture', 'up_capture', "capture_ratios"
+           'sortino_ratio', 'beta', 'bull_bear_beta', 'rolling_beta', 'downside_variance',
+           'down_capture', 'up_capture', "capture_ratios",
            'batting_averages', 'information_ratio']

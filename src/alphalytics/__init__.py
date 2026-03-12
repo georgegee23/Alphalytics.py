@@ -30,7 +30,7 @@ from .performance_metrics import return_n, return_ytd, ann_return, ann_return_co
     information_ratio, batting_averages, \
     down_capture, up_capture, capture_ratios, \
     rolling_beta, \
-    cumgrowth, compute_cumulative_growth, compute_forward_returns
+    cumgrowth, compute_forward_returns
     
 
 from .plotting import plot_factor_data, plot_cumulative_performance, plot_quantiles_risk_metrics, plot_quantile_correlations, plot_spearman_rank, \
@@ -51,7 +51,7 @@ __all__ = [
     "compute_capm", "beta", "bull_bear_beta",
     "down_capture", "up_capture", "capture_ratios",
     "batting_averages", "information_ratio",
-    "cumgrowth", "compute_cumulative_growth", "compute_forward_returns", 
+    "cumgrowth", "compute_forward_returns", 
 
     "plot_factor_data", "plot_cumulative_performance", "plot_quantiles_risk_metrics", 
     "plot_quantile_correlations", "plot_spearman_rank", "plot_ic_hist", "qqplot_ic", "plot_ic_summary", 
