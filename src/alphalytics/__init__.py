@@ -43,7 +43,7 @@ from .performance_metrics import return_n, return_ytd, ann_return, ann_return_co
 from .plotting import plot_factor_data, plot_cumulative_performance, plot_quantiles_risk_metrics, plot_quantile_correlations, plot_spearman_rank, \
     plot_ic_hist, qqplot_ic, plot_ic_summary, plot_factor_decay, plot_forward_returns, plot_quantiles_annual_turnover, \
     plot_growth, plot_risk_return, plot_capture_ratios, plot_batting_averages, \
-    plot_area, plot_rolling_performance
+    plot_area, plot_rolling_overunder
 
 from .utils import detect_extreme_outliers, detect_internal_nan, fill_first_nan
 
@@ -72,6 +72,6 @@ __all__ = [
     "plot_quantile_correlations", "plot_spearman_rank", "plot_ic_hist", "qqplot_ic", "plot_ic_summary", 
     "plot_factor_decay", "plot_forward_returns", "plot_quantiles_annual_turnover", 
     "plot_growth", "plot_risk_return", "plot_capture_ratios", "plot_batting_averages", "plot_area",
-    "plot_rolling_performance",
+    "plot_rolling_overunder",
     "detect_extreme_outliers", "detect_internal_nan", "fill_first_nan"
 ]
