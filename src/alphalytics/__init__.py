@@ -27,7 +27,14 @@ from .turnover_analysis import calculate_autocorrelation, compute_factor_autocor
 from .performance_metrics import return_n, return_ytd, ann_return, ann_return_common_si, performance_table, \
     downside_variance, sortino_ratio, \
     compute_capm, beta, bull_bear_beta, \
-    information_ratio, batting_averages, \
+
+    evaluate_consistency, \
+    batting_average, bull_batting_average, bear_batting_average, \
+    win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio, \
+    active_return, tracking_error, information_ratio, \
+    
+
+    batting_averages, \
     down_capture, up_capture, capture_ratios, \
     rolling_beta, \
     cumgrowth, compute_forward_returns
@@ -36,7 +43,7 @@ from .performance_metrics import return_n, return_ytd, ann_return, ann_return_co
 from .plotting import plot_factor_data, plot_cumulative_performance, plot_quantiles_risk_metrics, plot_quantile_correlations, plot_spearman_rank, \
     plot_ic_hist, qqplot_ic, plot_ic_summary, plot_factor_decay, plot_forward_returns, plot_quantiles_annual_turnover, \
     plot_growth, plot_risk_return, plot_capture_ratios, plot_batting_averages, \
-    plot_area
+    plot_area, plot_rolling_performance
 
 from .utils import detect_extreme_outliers, detect_internal_nan, fill_first_nan
 
@@ -50,7 +57,14 @@ __all__ = [
     "downside_variance", "sortino_ratio",
     "compute_capm", "beta", "bull_bear_beta",
     "down_capture", "up_capture", "capture_ratios",
-    "batting_averages", "information_ratio",
+    "batting_averages", 
+
+    'evaluate_consistency',
+    'batting_average', 'bull_batting_average', 'bear_batting_average',
+    'win_loss_ratio', 'bull_win_loss_ratio', 'bear_win_loss_ratio', 
+    'active_return', 'tracking_error', 'information_ratio',
+    
+
     "rolling_beta",
     "cumgrowth", "compute_forward_returns", 
 
@@ -58,5 +72,6 @@ __all__ = [
     "plot_quantile_correlations", "plot_spearman_rank", "plot_ic_hist", "qqplot_ic", "plot_ic_summary", 
     "plot_factor_decay", "plot_forward_returns", "plot_quantiles_annual_turnover", 
     "plot_growth", "plot_risk_return", "plot_capture_ratios", "plot_batting_averages", "plot_area",
+    "plot_rolling_performance",
     "detect_extreme_outliers", "detect_internal_nan", "fill_first_nan"
 ]

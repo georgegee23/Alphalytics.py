@@ -1,6 +1,7 @@
 
 import pandas as pd
 import numpy as np
+from typing import Union
 import quantstats as qs
 import warnings
 
@@ -359,7 +360,268 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
     return capm_df
 
 
- # ============== THE END ============== #     
+# ==========================================
+# BATTING AVERAGES (Hit Rates)
+# ==========================================
+
+def batting_average(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Overall percentage of periods the strategy beats the benchmark."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: batting_average(col, benchmark_returns))
+
+    excess = (strategy_returns - benchmark_returns).dropna()
+    if excess.empty: return np.nan
+        
+    return float((excess > 0).mean())
+
+def bull_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Batting average only during benchmark up-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bull_batting_average(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bull_excess = strat[bench > 0] - bench[bench > 0]
+    
+    if bull_excess.empty: return np.nan
+        
+    return float((bull_excess > 0).mean())
+
+def bear_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Batting average only during benchmark down-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bear_batting_average(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bear_excess = strat[bench <= 0] - bench[bench <= 0]
+    
+    if bear_excess.empty: return np.nan
+        
+    return float((bear_excess > 0).mean())
+
+# ==========================================
+# WIN/LOSS RATIOS (Payoff Ratios)
+# ==========================================
+
+def win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Overall ratio of average outperformance to absolute average underperformance."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: win_loss_ratio(col, benchmark_returns))
+
+    excess = (strategy_returns - benchmark_returns).dropna()
+    wins, losses = excess[excess > 0], excess[excess < 0]
+    
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+    
+    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
+    return float(avg_win / avg_loss)
+
+def bull_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Win/loss ratio only during benchmark up-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bull_win_loss_ratio(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bull_excess = strat[bench > 0] - bench[bench > 0]
+    
+    wins, losses = bull_excess[bull_excess > 0], bull_excess[bull_excess < 0]
+    
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+    
+    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
+    return float(avg_win / avg_loss)
+
+def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Win/loss ratio only during benchmark down-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bear_win_loss_ratio(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bear_excess = strat[bench <= 0] - bench[bench <= 0]
+    
+    wins, losses = bear_excess[bear_excess > 0], bear_excess[bear_excess < 0]
+    
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+    
+    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
+    return float(avg_win / avg_loss)
+
+# ==========================================
+# ACTIVE RETURN
+# ==========================================
+
+def active_return(
+    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series,
+    periods_per_year: int = 252
+) -> Union[float, pd.Series]:
+    """
+    Computes the annualized arithmetic mean of excess returns.
+    """
+    # Handle DataFrame recursion
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: active_return(col, benchmark_returns, periods_per_year))
+
+    # Align data to avoid mismatched date errors
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    excess = (strat - bench).dropna()
+    
+    if excess.empty: 
+        return np.nan
+        
+    # Annualize the mean excess return
+    return float(excess.mean() * periods_per_year)
+
+
+# ==========================================
+# TRACKING ERROR (Active Risk)
+# ==========================================
+
+def tracking_error(
+    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series,
+    periods_per_year: int = 252
+) -> Union[float, pd.Series]:
+    """
+    Computes the annualized standard deviation of excess returns.
+    """
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: tracking_error(col, benchmark_returns, periods_per_year))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    excess = (strat - bench).dropna()
+    
+    # Require at least 2 data points for standard deviation
+    if len(excess) < 2: 
+        return np.nan
+        
+    # Calculate sample standard deviation (ddof=1) and annualize it
+    return float(excess.std(ddof=1) * np.sqrt(periods_per_year))
+
+
+# ==========================================
+# INFORMATION RATIO
+# ==========================================
+
+def information_ratio(
+    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    benchmark_returns: pd.Series,
+    periods_per_year: int = 252
+) -> Union[float, pd.Series]:
+    """
+    Computes the annualized Information Ratio (Active Return / Tracking Error).
+    """
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: information_ratio(col, benchmark_returns, periods_per_year))
+
+    # We can just call our other two functions directly
+    ann_active_return = active_return(strategy_returns, benchmark_returns, periods_per_year)
+    ann_tracking_error = tracking_error(strategy_returns, benchmark_returns, periods_per_year)
+    
+    # Catch division by zero if the strategy perfectly mimics the benchmark
+    if pd.isna(ann_tracking_error) or ann_tracking_error == 0:
+        return np.nan
+        
+    return float(ann_active_return / ann_tracking_error)
+
+# ==========================================
+# EVALUATE INVESTMENTS CONSISTENCY
+# ==========================================
+
+def evaluate_consistency(
+    strategy_returns: pd.DataFrame | pd.Series, 
+    benchmark_returns: pd.Series,
+    periods_per_year: int = 252,
+    formatted: bool = False
+) -> pd.DataFrame:
+    """
+    Evaluates the relative consistency and active risk of one or multiple strategies.
+    
+    Parameters
+    ----------
+    strategy_returns : pd.Series or pd.DataFrame
+        Periodic returns for the strategy/strategies.
+    benchmark_returns : pd.Series
+        Periodic returns for the benchmark.
+    periods_per_year : int
+        Annualization factor (252 for daily, 12 for monthly).
+    formatted : bool
+        If True, returns strings with %, x, and decimals. If False, returns raw floats.
+        
+    Returns
+    -------
+    pd.DataFrame
+        A tearsheet with strategies as rows and consistency/risk metrics as columns.
+    """
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns
+
+    results = {}
+    
+    # Calculate metrics, ordering them exactly how they should appear left-to-right
+    for col in strat_df.columns:
+        strat = strat_df[col]
+        
+        results[col] = {
+            "Batting Average (Overall)": batting_average(strat, benchmark_returns),
+            "Batting Average (Bull)": bull_batting_average(strat, benchmark_returns),
+            "Batting Average (Bear)": bear_batting_average(strat, benchmark_returns),
+            "Win/Loss Ratio (Overall)": win_loss_ratio(strat, benchmark_returns),
+            "Win/Loss Ratio (Bull)": bull_win_loss_ratio(strat, benchmark_returns),
+            "Win/Loss Ratio (Bear)": bear_win_loss_ratio(strat, benchmark_returns),
+            # Placed at the end per your request
+            "Active Return (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
+            "Tracking Error (Ann.)": tracking_error(strat, benchmark_returns, periods_per_year),
+            "Information Ratio": information_ratio(strat, benchmark_returns, periods_per_year)
+        }
+        
+    # Convert dictionary to DataFrame and transpose (.T) so strategies are rows
+    tearsheet = pd.DataFrame(results).T
+    
+    # Apply string formatting for presentation if requested
+    if formatted:
+        format_rules = {
+            "Batting Average (Overall)": "{:.2%}",
+            "Batting Average (Bull)": "{:.2%}",
+            "Batting Average (Bear)": "{:.2%}",
+            "Win/Loss Ratio (Overall)": "{:.2f}x",
+            "Win/Loss Ratio (Bull)": "{:.2f}x",
+            "Win/Loss Ratio (Bear)": "{:.2f}x",
+            "Active Return (Ann.)": "{:.2%}",
+            "Tracking Error (Ann.)": "{:.2%}",
+            "Information Ratio": "{:.2f}"
+        }
+        for metric, fmt in format_rules.items():
+            if metric in tearsheet.columns:
+                tearsheet[metric] = tearsheet[metric].apply(
+                    lambda x: fmt.format(x) if pd.notnull(x) else "N/A"
+                )
+                
+    return tearsheet
+
 
 def down_capture(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
     """
@@ -513,7 +775,7 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
         # No overlapping data at all
         return pd.DataFrame(
             {
-                "Overall Batting Avg": np.nan,
+                "Batting Average": np.nan,
                 "Up Market Batting Avg": np.nan,
                 "Down Market Batting Avg": np.nan,
             },
@@ -543,7 +805,7 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
     # 6. Final table
     batting_df = pd.DataFrame(
         {
-            "Overall Batting Avg": overall_avg,
+            "Batting Average": overall_avg,
             "Up Market Batting Avg": up_avg,
             "Down Market Batting Avg": down_avg,
         }
@@ -551,78 +813,8 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
 
     return batting_df
 
-def information_ratio(returns: pd.DataFrame, benchmark: pd.Series, periods_per_year: int = 12) -> pd.DataFrame:
-
-    """
-    Calculates Annualized Active Return, Tracking Error, and Information Ratio
-    for multiple strategies simultaneously.
-    
-    IMPORTANT: All metrics are computed on the COMMON overlapping period only
-    (i.e. dates where EVERY strategy AND the benchmark have valid returns).
-    This guarantees perfect comparability across strategies.
-    
-    Args:
-        returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
-        benchmark (pd.Series): Periodic returns of the benchmark.
-        periods_per_year (int): Periods per year (252 daily, 12 monthly, etc.).
-        
-    Returns:
-        pd.DataFrame: Summary table with the three annualized metrics per strategy.
-    """
-    # 1. Input validation
-    if not isinstance(returns, pd.DataFrame):
-        raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}"
-    if not isinstance(benchmark, pd.Series):
-        raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
-
-    # 2. Align on index + keep only common valid dates
-    data = returns.copy()
-    data["bench_"] = benchmark                    # pandas aligns automatically
-    data = data.dropna(how="any")                 # drop row if ANY NaN present
-
-    if data.empty:
-        # No overlapping data at all
-        return pd.DataFrame(
-            {
-                "Ann. Active Return": np.nan,
-                "Ann. Tracking Error": np.nan,
-                "Information Ratio": np.nan,
-            },
-            index=returns.columns,
-        )
-
-    aligned_returns = data[returns.columns]       # or data.drop(columns=["bench_"])
-    aligned_bench = data["bench_"]
-
-    # 3. Periodic active returns
-    active_returns = aligned_returns.sub(aligned_bench, axis=0)
-
-    # 4. Periodic statistics
-    periodic_active_return = active_returns.mean()
-    periodic_tracking_error = active_returns.std(ddof=1)
-
-    # 5. Annualize
-    ann_active_return = periodic_active_return * periods_per_year
-    ann_tracking_error = periodic_tracking_error * np.sqrt(periods_per_year)
-
-    # 6. Information Ratio (safe against perfect tracking)
-    safe_te = ann_tracking_error.replace(0, np.nan)
-    info_ratio = ann_active_return / safe_te
-
-    # 7. Final table
-    ir_df = pd.DataFrame(
-        {
-            "Ann. Active Return": ann_active_return,
-            "Ann. Tracking Error": ann_tracking_error,
-            "Information Ratio": info_ratio,
-        }
-    )
-
-    return ir_df
-
 
 # ============== PERFORMANCE METRICS ============== #
-
 
 def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
     """Compute cumulative growth from a DataFrame of periodic returns.
@@ -711,4 +903,8 @@ __all__ = ['return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'perf
            'compute_forward_returns', 'compute_capm',
            'sortino_ratio', 'beta', 'bull_bear_beta', 'rolling_beta', 'downside_variance',
            'down_capture', 'up_capture', "capture_ratios",
-           'batting_averages', 'information_ratio']
+           'batting_averages', 
+           'batting_average', 'bull_batting_average', 'bear_batting_average',
+           'win_loss_ratio', 'bull_win_loss_ratio', 'bear_win_loss_ratio', 
+           'active_return', 'tracking_error', 'information_ratio',
+           'evaluate_consistency']

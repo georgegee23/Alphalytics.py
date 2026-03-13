@@ -5,6 +5,8 @@ from typing import Union, List
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.gridspec as gridspec
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
 
 import seaborn as sns
 
@@ -902,5 +904,129 @@ def plot_area(data: Union[pd.Series, pd.DataFrame], kind="area", fig_size=(8.25,
     plt.tight_layout()
     return fig, ax
 
+
+
+def plot_rolling_overunder(strategy_returns: pd.Series, benchmark_returns: pd.Series,
+    window: int = 12, figsize: tuple = (10, 8)) -> tuple[plt.Figure, plt.Axes]:
+
+    """Plot rolling over/under benchmark performance as a scatter chart.
+
+    Computes rolling compounded returns for a strategy and benchmark,
+    then plots each rolling window as a point. Points above the
+    45-degree diagonal indicate strategy outperformance; points below
+    indicate benchmark outperformance. Shaded regions and hit-rate
+    statistics make relative performance easy to read at a glance.
+
+    1. The Legend (Batting Average): Tells you how often you get a hit.
+    2. The Scatter Plot (Slugging Percentage): Shows you if your hits are 
+    singles or home runs. If your strategy's dots in the green zone are way up at the top, 
+    but the dots in the red zone are clustered right against the line, 
+    it means when you win, you win big, and when you lose, you barely lose.
+
+    Parameters
+    ----------
+    strategy_returns : pd.Series
+        Periodic returns for the strategy in decimal form.
+        The Series name is used as the display label.
+    benchmark_returns : pd.Series
+        Periodic returns for the benchmark in decimal form.
+        The Series name is used as the display label.
+    window : int, optional
+        Rolling window size in periods. Default is 12.
+    figsize : tuple, optional
+        Figure dimensions (width, height) in inches. A square shape
+        (e.g. 8, 8) pairs best with the equal aspect ratio.
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        The matplotlib Figure and Axes objects for further customization.
+
+    Notes
+    -----
+    Rolling returns are computed using log-sum-exp for numerical
+    stability: ``np.exp(np.log1p(r).rolling(w).sum()) - 1``.
+
+    Colors for shaded regions, reference lines, and the legend frame
+    are pulled dynamically from the active matplotlib style, so the
+    chart adapts to any theme.
+    """
+
+    # Use the Series name if it exists; otherwise, fall back to the default argument
+    strategy_name = strategy_returns.name or "Strategy"
+    benchmark_name = benchmark_returns.name or "Benchmark"
+
+    # 1. Fast rolling calculation
+    strat_rolling = np.exp(np.log1p(strategy_returns).rolling(window=window).sum()) - 1
+    bench_rolling = np.exp(np.log1p(benchmark_returns).rolling(window=window).sum()) - 1
+
+    df = pd.concat([strat_rolling, bench_rolling], axis=1).dropna()
+    df.columns = [strategy_name, benchmark_name]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # 2. Plot scatter
+    ax.scatter(df[benchmark_name], df[strategy_name], alpha=0.8, s=40, zorder=3)
+
+    # 3. Set dynamic axis limits for a perfect square grid
+    min_val = min(df[strategy_name].min(), df[benchmark_name].min())
+    max_val = max(df[strategy_name].max(), df[benchmark_name].max())
+    padding = (max_val - min_val) * 0.05
+    lower_lim = min_val - padding
+    upper_lim = max_val + padding
+
+    ax.set_xlim(lower_lim, upper_lim)
+    ax.set_ylim(lower_lim, upper_lim)
+    ax.set_aspect("equal")
+
+    # 4. Pull contextual colors dynamically directly from the active plot
+    bg_color = ax.get_facecolor()
+    text_color = plt.rcParams['text.color']
+    grid_color = plt.rcParams['grid.color']
+
+    # 5. Draw Reference Lines
+    ax.axhline(0, color=grid_color, linewidth=1.5, zorder=2)
+    ax.axvline(0, color=grid_color, linewidth=1.5, zorder=2)
+    ax.plot([lower_lim, upper_lim], [lower_lim, upper_lim],
+            color=text_color, linestyle='-', linewidth=2, zorder=2)
+
+    # 6. Create Shaded Regions using your brand's color cycle
+    x_fill = np.linspace(lower_lim, upper_lim, 100)
+    ax.fill_between(x_fill, x_fill, upper_lim, color='C3', alpha=0.3, zorder=1)
+    ax.fill_between(x_fill, lower_lim, x_fill, color='C4', alpha=0.3, zorder=1)
+
+    # 7. Calculate Hit Rate Statistics
+    total_periods = len(df)
+    strat_wins = (df[strategy_name] > df[benchmark_name]).sum()
+    bench_wins = total_periods - strat_wins
+
+    strat_win_pct = strat_wins / total_periods
+    bench_win_pct = bench_wins / total_periods
+
+    # 8. Build an Inside Framed Legend
+    strat_patch = mpatches.Patch(color='C3', alpha=0.3, label=f'{strategy_name} outperforms {strat_wins} times ({strat_win_pct:.2%})')
+    bench_patch = mpatches.Patch(color='C4', alpha=0.3, label=f'{benchmark_name} outperforms {bench_wins} times ({bench_win_pct:.2%})')
+    line_handle = mlines.Line2D([], [], color=text_color, linestyle='-', linewidth=2, label='Zero Excess Return')
+
+    ax.legend(handles=[strat_patch, bench_patch, line_handle],
+              loc='upper left', frameon=True, facecolor=bg_color,
+              edgecolor=grid_color, framealpha=0.9, borderpad=1,
+              fontsize=12)
+
+    # 9. Formatting
+    ax.xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.set_xlabel(f'{benchmark_name} Return')
+    ax.set_ylabel(f'{strategy_name} Return')
+
+    ax.set_title("Over/Under Benchmark Performance", loc='left', fontweight='bold', fontsize=16, pad=25)
+
+    start_date = df.index.min().strftime('%m/%d/%Y')
+    end_date = df.index.max().strftime('%m/%d/%Y')
+    subtitle = f"Time Period: {start_date} to {end_date}    Rolling Window: {window} Periods"
+
+    ax.text(0, 1.02, subtitle, transform=ax.transAxes, fontsize=10, color=text_color)
+
+    return fig, ax
 
  # ============== THE END ============== #     
