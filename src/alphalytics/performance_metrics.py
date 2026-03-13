@@ -2,10 +2,7 @@
 import pandas as pd
 import numpy as np
 from typing import Union
-import quantstats as qs
 import warnings
-
-from .utils import fill_first_nan  # Import from utils module
 
 
 
@@ -305,10 +302,10 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
     
     Args:
         returns (pd.DataFrame): Periodic returns of the strategies.
-        benchmark (pd.Series, optional): Periodic returns of the benchmark. 
+        benchmark (pd.Series, optional): Periodic returns of the benchmark.
                                          Defaults to an equal-weight average of all strategies.
-        annualization_factor (int): Periods per year (e.g., 252 for daily, 12 for monthly). 
-                                    Defaults to 252 (daily trading days).
+        periods_per_year (int): Periods per year (e.g., 252 for daily, 12 for monthly).
+                                Defaults to 12 (monthly).
         
     Returns:
         pd.DataFrame: A summary table with Beta, Periodic Alpha, and Annualized Alpha for each strategy.
@@ -401,10 +398,10 @@ def bear_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame],
         return strategy_returns.apply(lambda col: bear_batting_average(col, benchmark_returns))
 
     strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bear_excess = strat[bench <= 0] - bench[bench <= 0]
-    
+    bear_excess = strat[bench < 0] - bench[bench < 0]
+
     if bear_excess.empty: return np.nan
-        
+
     return float((bear_excess > 0).mean())
 
 # ==========================================
@@ -456,8 +453,8 @@ def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
         return strategy_returns.apply(lambda col: bear_win_loss_ratio(col, benchmark_returns))
 
     strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bear_excess = strat[bench <= 0] - bench[bench <= 0]
-    
+    bear_excess = strat[bench < 0] - bench[bench < 0]
+
     wins, losses = bear_excess[bear_excess > 0], bear_excess[bear_excess < 0]
     
     avg_win = wins.mean() if not wins.empty else 0.0
@@ -471,9 +468,9 @@ def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
 # ==========================================
 
 def active_return(
-    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series,
-    periods_per_year: int = 252
+    periods_per_year: int = 12
 ) -> Union[float, pd.Series]:
     """
     Computes the annualized arithmetic mean of excess returns.
@@ -498,9 +495,9 @@ def active_return(
 # ==========================================
 
 def tracking_error(
-    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series,
-    periods_per_year: int = 252
+    periods_per_year: int = 12
 ) -> Union[float, pd.Series]:
     """
     Computes the annualized standard deviation of excess returns.
@@ -524,9 +521,9 @@ def tracking_error(
 # ==========================================
 
 def information_ratio(
-    strategy_returns: Union[pd.Series, pd.DataFrame], 
+    strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series,
-    periods_per_year: int = 252
+    periods_per_year: int = 12
 ) -> Union[float, pd.Series]:
     """
     Computes the annualized Information Ratio (Active Return / Tracking Error).
@@ -549,9 +546,9 @@ def information_ratio(
 # ==========================================
 
 def evaluate_consistency(
-    strategy_returns: pd.DataFrame | pd.Series, 
+    strategy_returns: pd.DataFrame | pd.Series,
     benchmark_returns: pd.Series,
-    periods_per_year: int = 252,
+    periods_per_year: int = 12,
     formatted: bool = False
 ) -> pd.DataFrame:
     """
@@ -899,12 +896,12 @@ def rolling_beta(returns: pd.DataFrame, benchmark: pd.Series, window: int = 12) 
 
 
 __all__ = ['return_n', "return_ytd", "ann_return", 'ann_return_common_si', 'performance_table',
-           'cumgrowth', 'compute_cumulative_growth',
+           'cumgrowth',
            'compute_forward_returns', 'compute_capm',
            'sortino_ratio', 'beta', 'bull_bear_beta', 'rolling_beta', 'downside_variance',
            'down_capture', 'up_capture', "capture_ratios",
-           'batting_averages', 
+           'batting_averages',
            'batting_average', 'bull_batting_average', 'bear_batting_average',
-           'win_loss_ratio', 'bull_win_loss_ratio', 'bear_win_loss_ratio', 
+           'win_loss_ratio', 'bull_win_loss_ratio', 'bear_win_loss_ratio',
            'active_return', 'tracking_error', 'information_ratio',
            'evaluate_consistency']
