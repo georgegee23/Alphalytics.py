@@ -27,13 +27,10 @@ from .turnover_analysis import calculate_autocorrelation, compute_factor_autocor
 from .performance_metrics import return_n, return_ytd, ann_return, ann_return_common_si, performance_table, \
     downside_variance, sortino_ratio, \
     compute_capm, beta, bull_bear_beta, \
-
     evaluate_consistency, \
     batting_average, bull_batting_average, bear_batting_average, \
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio, \
     active_return, tracking_error, information_ratio, \
-    
-
     batting_averages, \
     down_capture, up_capture, capture_ratios, \
     rolling_beta, \
