@@ -10,6 +10,7 @@ import matplotlib.lines as mlines
 import seaborn as sns
 
 from alphalytics.returns.relative import capture_ratios
+from alphalytics.utils import _infer_periods_per_year
 
 
 ####### PERFORMANCE VISUALS #######
