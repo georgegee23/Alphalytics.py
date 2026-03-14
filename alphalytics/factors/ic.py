@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr, wilcoxon, binomtest, t, ttest_1samp, skew, kurtosis
 
-from alphalytics.performance_metrics import cumgrowth
+from alphalytics.returns.metrics import cumgrowth
 
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
@@ -74,20 +74,20 @@ def ts_spearmanr(factor: pd.DataFrame, returns: pd.DataFrame) -> pd.Series:
 def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: str = 'greater', round_digits: int = 4) -> pd.DataFrame:
     """
     Compute Spearman rank correlation statistics between factor scores and returns.
-    
+
     This function calculates various statistical measures based on the
-    cross-sectional Spearman rank correlations (Information Coefficients) between factor scores 
-    and returns. These statistics help evaluate the predictive power and 
+    cross-sectional Spearman rank correlations (Information Coefficients) between factor scores
+    and returns. These statistics help evaluate the predictive power and
     consistency of factor scores for financial returns.
-    
+
     Parameters
     ----------
     factors : pd.DataFrame
         DataFrame containing factor values. Each column represents an asset factor value and each row
         represents a time period. The index should be time-based.
-    
+
     returns : pd.DataFrame
-        DataFrame containing return values. Each column represents an asset's returns and 
+        DataFrame containing return values. Each column represents an asset's returns and
         each row represents a time period. Must have the same index as `factors`.
 
     alternative : str, optional
@@ -98,7 +98,7 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
 
     round_digits : int, optional
         Number of decimal places to round the output statistics to. Default is 4.
-    
+
     Returns
     -------
     pd.DataFrame
@@ -112,11 +112,11 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
         - Wcx Pval: p-value from Wilcoxon signed-rank test based on alternative
         - Hit Rate: Percentage of periods with positive IC
         - HR Pval: p-value for hit rate based on alternative (greater/less than 50%, or !=)
-        
+
     Notes
     -----
     - Assumes concurrent correlation; lag factors externally for predictive analysis to avoid look-ahead bias.
-    - The function requires the `cs_spearmanr` function to calculate 
+    - The function requires the `cs_spearmanr` function to calculate
       correlations at each time step.
     - NaN values in the correlation time series are dropped before statistics are computed.
     - For inverted factors (expected negative IC), use 'less' alternative or negate factors.
@@ -126,33 +126,33 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
         raise TypeError(f"factors must be a pd.DataFrame, got {type(factors).__name__}")
     if not isinstance(returns, pd.DataFrame):
         raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
-        
+
     if not factors.index.equals(returns.index):
         raise ValueError("Factors and returns must have the same index")
-        
+
     if factors.empty or returns.empty:
         raise ValueError("Input DataFrames cannot be empty")
-    
+
     if alternative not in ['two-sided', 'greater', 'less']:
         raise ValueError("alternative must be 'two-sided', 'greater', or 'less'")
-    
+
     # Calculate cross-sectional Spearman rank correlations at each time step
     cs_spearmanr_df = cs_spearmanr(factors, returns).dropna()
-    
+
     if cs_spearmanr_df.empty:
         raise ValueError("No valid data points after computing correlations and removing NaNs")
 
     # Calculate statistics from the time series of correlations
     ic_series = cs_spearmanr_df
     sample_size = len(ic_series)
-    
+
     mean_corr = ic_series.mean()
     std_corr = ic_series.std()
-    
+
     # Avoid division by zero
     raic = mean_corr / std_corr if std_corr != 0 else np.nan
     t_stat = mean_corr / (std_corr / np.sqrt(sample_size)) if std_corr != 0 else np.nan
-    
+
     # Calculate t-test p-value based on alternative
     if np.isnan(t_stat):
         t_pval = np.nan
@@ -169,13 +169,13 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
         w_stat, wilcoxon_pval = wilcoxon(ic_series, alternative=alternative, zero_method="wilcox")
     else:
         w_stat, wilcoxon_pval = np.nan, np.nan
-    
+
     ic_skew = skew(ic_series)
     ic_kurtosis = kurtosis(ic_series)
 
     n_positive = (ic_series > 0).sum()
     n_total = len(ic_series)
-    
+
     # Adjust binomtest for directional: test p != 0.5 (two-sided), p > 0.5 (greater), p < 0.5 (less)
     if alternative == 'two-sided':
         sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="two-sided").pvalue
@@ -183,13 +183,13 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
         sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="greater").pvalue
     elif alternative == 'less':
         sign_pval = binomtest(n_positive, n_total, p=0.5, alternative="less").pvalue
-    
+
     hit_rate = (ic_series > 0).mean()  # Percentage of positive ICs
-    
+
     #Create dictionary to store results
     ic_stats_dict = {
         "IC Stats": [
-            mean_corr, 
+            mean_corr,
             std_corr,
             raic,
             ic_skew,
@@ -204,22 +204,22 @@ def compute_ic_stats(factors: pd.DataFrame, returns: pd.DataFrame, alternative: 
     # Create DataFrame with statistics
     col_names = ["Mean", "Std", "RAIC", "Skew", "Kurtosis", "T Pval", "Wcx Pval", "Hit Rate", "HR Pval"]
     ic_stats_df = pd.DataFrame.from_dict(ic_stats_dict, orient="index", columns=col_names).round(round_digits)
-    
+
     return ic_stats_df
 
 
 # ============== FACTOR INFORMATION DECAY ANALYSIS ============== #
 
-def factor_decay(factor: pd.DataFrame, 
-                returns: pd.DataFrame, 
-                max_periods: int = 24, 
+def factor_decay(factor: pd.DataFrame,
+                returns: pd.DataFrame,
+                max_periods: int = 24,
                 step: int = 1,
                 alternative="greater") -> dict:
     """
-    Analyze how factor predictive power decays over time by computing 
-    cross-sectional correlations between factor values and future returns 
+    Analyze how factor predictive power decays over time by computing
+    cross-sectional correlations between factor values and future returns
     at different lags.
-    
+
     Parameters
     ----------
     factor : pd.DataFrame
@@ -230,7 +230,7 @@ def factor_decay(factor: pd.DataFrame,
         Maximum number of periods to look ahead
     step : int, default=1
         Step size between lags
-        
+
     Returns
     -------
     dict
@@ -238,7 +238,7 @@ def factor_decay(factor: pd.DataFrame,
         Correlation is the mean cross-sectional Spearman correlation between
         factor and returns at that lag. P-value is from t-test of correlation
         significance.
-        
+
     Notes
     -----
     - Converts returns to prices using compute_prices()
@@ -255,26 +255,24 @@ def factor_decay(factor: pd.DataFrame,
         raise ValueError("max_lag must be positive")
     if step < 1:
         raise ValueError("step must be positive")
-        
+
     # Convert returns to prices
     prices = cumgrowth(returns)
     decay_results = {}
-    
+
     # Calculate correlations for different lags
     for lag in range(1, max_periods + 1, step):
         # Get returns over lag period
         rets = prices.pct_change(lag).dropna(how="all")
-        
+
         # Calculate cross-sectional correlations
         ic_corrs = cs_spearmanr(factor.loc[rets.index], rets)
-        
+
         # Test statistical significance
         t_stat, t_pval = ttest_1samp(ic_corrs, popmean=0, alternative=alternative)
         w_stat, wilcoxon_pval = wilcoxon(ic_corrs, alternative=alternative, zero_method="wilcox")
         mean_ic_corrs = ic_corrs.mean()
-        
-        decay_results[lag] = (mean_ic_corrs, t_pval, wilcoxon_pval)
-        
-    return pd.DataFrame(decay_results, index=["IC", "T_PValue", "WCX_PValue"]).T
 
- # ============== THE END ============== #     
+        decay_results[lag] = (mean_ic_corrs, t_pval, wilcoxon_pval)
+
+    return pd.DataFrame(decay_results, index=["IC", "T_PValue", "WCX_PValue"]).T

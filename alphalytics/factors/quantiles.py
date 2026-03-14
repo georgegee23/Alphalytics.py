@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 
+
 # ============== QUANTILE PERFORMANCE ANALYSIS ============== #
 
 def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.DataFrame:
@@ -82,7 +83,7 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
         raise TypeError(f"quantiles must be a pd.DataFrame, got {type(quantiles).__name__}")
     if not isinstance(returns, pd.DataFrame):
         raise TypeError(f"returns must be a pd.DataFrame, got {type(returns).__name__}")
-    
+
     if not quantiles.index.equals(returns.index) or not quantiles.columns.equals(returns.columns):
         raise ValueError("quantiles and returns must have the same index and columns")
 
@@ -105,20 +106,20 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
     return quantile_returns.dropna(how="all")
 
 
-# ============== QUANTILE HORIZON ANALYSIS ============== #  
+# ============== QUANTILE HORIZON ANALYSIS ============== #
 
 def get_quantile_holdings(quantiles, target_quantile) -> pd.Series:
 
     """Extracts holdings (column names) matching a target quantile for each row in a DataFrame.
 
     Args:
-        quantiles_df (pd.DataFrame): A DataFrame where rows represent time periods (or entities) 
+        quantiles_df (pd.DataFrame): A DataFrame where rows represent time periods (or entities)
             and columns represent holdings (e.g., assets), with values indicating quantiles.
         target_quantile (int or float): The quantile value to match (e.g., 1, 2, 3).
 
     Returns:
-        pd.Series: A Series with the same index as the filtered quantiles_df (after dropping 
-            rows with all NaN), where each value is a list of column names (holdings) 
+        pd.Series: A Series with the same index as the filtered quantiles_df (after dropping
+            rows with all NaN), where each value is a list of column names (holdings)
             whose quantile equals the target_quantile in that row.
 
     Example:
@@ -141,19 +142,19 @@ def get_quantile_holdings(quantiles, target_quantile) -> pd.Series:
 def compute_mean_quantile_forward_return(returns: pd.DataFrame, quantile_holdings: pd.Series, forward_periods: int) -> pd.DataFrame:
     """
     Compute the mean forward return of assets in a quantile over a specified number of periods.
-    
+
     Parameters:
     - returns: DataFrame of periodic returns (dates x assets).
     - quantile_holdings: Series with dates as index and lists of asset names as values.
     - forward_periods: Number of periods to look forward.
-    
+
     Returns:
     - DataFrame with dates and mean forward returns.
     """
     # Compute cumulative growth and forward returns
     cumulative_growth = (returns + 1).cumprod()
     # Compute forward returns
-    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1 
+    forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
 
     # For each date, get the mean forward return of selected holdings
     mean_q_dict = {}
@@ -164,19 +165,19 @@ def compute_mean_quantile_forward_return(returns: pd.DataFrame, quantile_holding
                 mean_q_dict[date] = forward_returns.loc[date, selected_holdings].mean()
             else:
                 mean_q_dict[date] = np.nan
-    
+
     return pd.DataFrame.from_dict(mean_q_dict, orient='index', columns=['Mean'])
 
 def fwd_quantile_stats(returns: pd.DataFrame, quantiles: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
     """
     Compute forward returns for each quantile.
-    
+
     Parameters:
     - returns: DataFrame of periodic returns (dates x assets).
     - quantiles: DataFrame where values indicate quantiles of assets.
     - periods: Number of periods to look forward.
     - timedelta_unit: Time unit for forward periods (e.g., "W" for weeks).
-    
+
     Returns:
     - DataFrame mapping quantile labels to their mean forward returns and risk-adjusted forward returns.
     """
@@ -186,7 +187,7 @@ def fwd_quantile_stats(returns: pd.DataFrame, quantiles: pd.DataFrame, forward_p
     for q in quantiles_list:
         q_holdings = get_quantile_holdings(quantiles, q)  # Fixed function name
         mean_fwd_rets = compute_mean_quantile_forward_return(returns, q_holdings, forward_periods=forward_periods)
-        
+
         if not mean_fwd_rets.empty:
             fwd_std = mean_fwd_rets.std().values[0]
             quantile_fwd_rets_dict[f"Q{q}"] = [mean_fwd_rets.mean().values[0], (mean_fwd_rets.mean().values[0] / fwd_std)]
@@ -195,8 +196,3 @@ def fwd_quantile_stats(returns: pd.DataFrame, quantiles: pd.DataFrame, forward_p
 
     fwd_quantile_df = pd.DataFrame.from_dict(quantile_fwd_rets_dict, orient="index", columns = ["Return", "Risk-Adjusted Return"])
     return fwd_quantile_df
-
-
-
-
- # ============== THE END ============== #     

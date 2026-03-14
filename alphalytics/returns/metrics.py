@@ -1,0 +1,174 @@
+
+import pandas as pd
+import numpy as np
+import warnings
+
+
+# ============== RETURNS FUNCTIONS ============== #
+
+def return_n(rets: pd.DataFrame, n: int) -> pd.Series:
+    """
+    Calculates the cumulative trailing return over the last 'n' periods.
+    """
+    if len(rets) < n:
+        return pd.Series(np.nan, index=rets.columns)
+
+    ret_n = (rets.iloc[-n:] + 1).prod() - 1
+    ret_n.name = f"{n} Period"
+    return ret_n
+
+def return_ytd(rets: pd.DataFrame) -> pd.Series:
+    """
+    Calculates YTD return using the calendar year of the last available date.
+    Assumes rets has a DatetimeIndex.
+    """
+    if rets.empty:
+        return pd.Series(0.0, index=rets.columns)
+
+    # Identify the current year based on the very last data point
+    current_year = rets.index[-1].year
+
+    # Slice only the returns belonging to that year
+    ytd_data = rets[rets.index.year == current_year]
+
+    # Calculate geometric return for that slice
+    ytd_rets = (ytd_data + 1).prod() - 1
+    ytd_rets.name = "YTD"
+    return ytd_rets
+
+def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -> pd.Series:
+    """
+    Calculates the annualized trailing return over a specific number of years.
+    """
+    if years < 1:
+        raise ValueError(f"years must be >= 1 to annualize, got {years}")
+
+    n = years * periods_per_year
+
+    # Safety check: If history is shorter than requested periods, return NaN
+    if len(rets) < n:
+        return pd.Series(np.nan, index=rets.columns)
+
+    # 1. Calculate cumulative return over the sliced last 'n' periods
+    n_ret = (rets.iloc[-n:] + 1).prod() - 1
+
+    # 2. Annualize the cumulative return
+    ann_ret = (n_ret + 1) ** (1 / years) - 1
+    ann_ret.name = f"{years} Year"
+
+    return ann_ret
+
+def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Series:
+    """
+    Calculates the annualized Since Inception return over the COMMON period.
+    Forces an apples-to-apples comparison by only evaluating dates where
+    all strategies in the DataFrame have overlapping data.
+    """
+    if rets.empty:
+        return pd.Series(np.nan, index=rets.columns)
+
+    # 1. Align data: Keep only dates where ALL columns have data
+    aligned_rets = rets.dropna()
+
+    total_periods = len(aligned_rets)
+
+    # 2. Safety Check: Ensure the overlapping period is at least 1 year
+    if total_periods < periods_per_year:
+        raise ValueError("The overlapping 'apples-to-apples' history is less than 1 year. Cannot annualize.")
+
+    years = total_periods / periods_per_year
+
+    # 3. Calculate total cumulative return over the perfectly aligned period
+    cumret = (aligned_rets + 1).prod() - 1
+
+    # 4. Annualize based on the exact fractional years of the common period
+    si_ret = (cumret + 1) ** (1 / years) - 1
+    si_ret.name = "SI"
+
+    return si_ret
+
+def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.DataFrame:
+    """
+    Builds a standard institutional performance table (1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, SI).
+    Forces an apples-to-apples comparison by aligning all dates first.
+
+    Parameters
+    ----------
+    rets : pd.DataFrame
+        Periodic returns of the strategies.
+    periods_per_year : int, default 12
+        Frequency of the data (12 for monthly, 252 for daily).
+
+    Returns
+    -------
+    pd.DataFrame
+        A table where rows are strategies and columns are trailing timeframes.
+    """
+    # 1. Align all data to guarantee apples-to-apples comparison
+    aligned_rets = rets.dropna()
+
+    if aligned_rets.empty:
+        raise ValueError("No common dates found across all strategies.")
+
+    # 2. Calculate individual metrics using your toolkit
+
+    # 1-Month Return (Safely compounds daily/weekly data if needed)
+    m1_n = int(periods_per_year / 12)
+    m1 = return_n(aligned_rets, m1_n)
+    m1.name = "1M"
+
+    # 3-Month Return
+    m3_n = int(periods_per_year / 4)
+    m3 = return_n(aligned_rets, m3_n)
+    m3.name = "3M"
+
+    ytd = return_ytd(aligned_rets)
+    yr1 = ann_return(aligned_rets, years=1, periods_per_year=periods_per_year)
+    yr3 = ann_return(aligned_rets, years=3, periods_per_year=periods_per_year)
+    yr5 = ann_return(aligned_rets, years=5, periods_per_year=periods_per_year)
+    yr10 = ann_return(aligned_rets, years=10, periods_per_year=periods_per_year)
+
+    # 3. Calculate Common SI safely (in case they share less than 1 year)
+    try:
+        si = ann_return_common_si(aligned_rets, periods_per_year=periods_per_year)
+    except ValueError:
+        si = pd.Series(np.nan, index=aligned_rets.columns, name="Common SI")
+
+    # 4. Concatenate into a single presentation DataFrame
+    perf_table = pd.concat([m1, m3, ytd, yr1, yr3, yr5, yr10, si], axis=1)
+
+    return perf_table
+
+
+def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
+    """Compute cumulative growth from a DataFrame of periodic returns.
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        Periodic returns in decimal form with a DatetimeIndex.
+    init_value : float, optional
+        Starting value for the growth series. Default is 1.0.
+
+    Returns
+    -------
+    pd.DataFrame
+        Cumulative growth values, prepended with an initial-value row
+        if the index frequency can be inferred.
+    """
+    cumulative_growth = (returns + 1).cumprod() * init_value
+
+    dt_freq = returns.index.inferred_freq
+
+    if dt_freq:
+        init_dt = returns.index[0] - pd.tseries.frequencies.to_offset(dt_freq)
+        init_row = pd.DataFrame(init_value, index=[init_dt], columns=returns.columns)
+        cumulative_growth = pd.concat([init_row, cumulative_growth]).sort_index()
+    else:
+
+        warnings.warn(
+            "Could not infer index frequency — initial value row not prepended.",
+            stacklevel=2,
+        )
+
+    return cumulative_growth

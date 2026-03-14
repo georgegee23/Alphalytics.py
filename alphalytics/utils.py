@@ -10,7 +10,7 @@ def detect_extreme_outliers(df:pd.DataFrame, iqr_multiplier:int=4, threshold_per
 
     """
     Detects columns that contain extreme outliers relative the column's values.
-    
+
     Parameters:
     -----------
     df : pandas.DataFrame
@@ -19,41 +19,41 @@ def detect_extreme_outliers(df:pd.DataFrame, iqr_multiplier:int=4, threshold_per
         Multiplier for IQR to identify extreme outliers (standard is 1.5, 3.0 for extreme)
     threshold_percentage : float, default 0.05
         Minimum percentage of extreme outliers required to flag a column
-        
+
     Returns:
     --------
     list
         Names of columns containing extreme outliers
     """
     outlier_columns = []
-    
+
     # Process only numeric columns
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    
+
     for col in numeric_cols:
         # Skip columns with all NaN values
         if df[col].isna().all():
             continue
-        
+
         # Calculate Q1, Q3, and IQR
         q1 = df[col].quantile(0.25)
         q3 = df[col].quantile(0.75)
         iqr = q3 - q1
-        
+
         # Define lower and upper bounds for extreme outliers
         lower_bound = q1 - (iqr_multiplier * iqr)
         upper_bound = q3 + (iqr_multiplier * iqr)
-        
+
         # Identify outliers
         outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)][col]
-        
+
         # Calculate percentage of outliers
         outlier_percentage = len(outliers) / len(df[col].dropna())
-        
+
         # Add column to the list if it exceeds the threshold
         if outlier_percentage >= threshold_percentage:
             outlier_columns.append(col)
-    
+
     return outlier_columns
 
 
@@ -76,7 +76,7 @@ def detect_internal_nan(df: pd.DataFrame) -> list[str]:
 
     Examples
     --------
-    >>> test_dict = {"A": [0.01, 0.02, 0.03, -0.02, 0.03, 0.05], 
+    >>> test_dict = {"A": [0.01, 0.02, 0.03, -0.02, 0.03, 0.05],
     ...              "B": [0.03, 0.01, -0.01, np.nan, np.nan, np.nan],
     ...              "C": [np.nan, np.nan, np.nan, 0.03, -0.01, 0.04],
     ...              "D": [0.01, np.nan, np.nan, np.nan, 0.05, 0.06],
@@ -91,46 +91,46 @@ def detect_internal_nan(df: pd.DataFrame) -> list[str]:
     - Uses pd.isna() for NaN detection, which works for float, object, and other dtypes supporting NaNs.
     - Does not modify the input DataFrame.
     """
-    
+
     def has_internal_nans(s: pd.Series) -> bool:
         # Helper function to check a single Series for internal NaNs
         if len(s) < 3:  # Too short to have interruptions "between" values
             return False
-        
+
         has_any_nan = s.isna().any()  # Check for any NaNs at all
         first_not_nan = not pd.isna(s.iloc[0])  # First value is not NaN
         last_not_nan = not pd.isna(s.iloc[-1])  # Last value is not NaN
-        
+
         # If all conditions are true, NaNs must be internal
         return has_any_nan and first_not_nan and last_not_nan
-    
+
     # List to collect qualifying column names
     columns_with_internal_nans = []
-    
+
     # Iterate over each column and apply the check
     for col in df.columns:
         if has_internal_nans(df[col]):
             columns_with_internal_nans.append(col)
-    
+
     return columns_with_internal_nans
 
 
 def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
     """
     Fill the first NaN value in a time series with a specified value.
-    
+
     Parameters
     ----------
     series : pd.Series
         Time series data with datetime index
     value : float, default 1.0
         Value to fill the first NaN with
-        
+
     Returns
     -------
     pd.Series
         Series with first NaN filled
-        
+
     Raises
     ------
     TypeError
@@ -141,25 +141,57 @@ def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
     # Input validation
     if not isinstance(series, pd.Series):
         raise TypeError(f"series must be a pd.Series, got {type(series).__name__}")
-    
+
     if len(series) == 0:
         raise ValueError("Series is empty")
-        
+
     if not series.isna().any():
         return series
-    
+
     # Find first NaN date
     first_nan_idx = series.index[series.isna()][0]
-    
+
     # Create copy to avoid modifying original
     result = series.copy()
     result.loc[first_nan_idx] = value
-    
+
     return result
 
- # ============== THE END ============== #
- # 
- # # Make sure to export the function
-__all__ = ["detect_extreme_outliers", 
-           "detect_internal_nan", 
-           "fill_first_nan"]     
+
+def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
+    """Infer the number of periods per year from a DatetimeIndex.
+
+    Parameters
+    ----------
+    index : pd.DatetimeIndex
+        The datetime index to analyze.
+
+    Returns
+    -------
+    int
+        Estimated periods per year (252 for daily, 52 for weekly,
+        12 for monthly, 4 for quarterly, 1 for annual).
+    """
+    if len(index) < 2:
+        return 12  # default to monthly
+
+    median_days = pd.Series(index).diff().dt.days.median()
+
+    if median_days <= 3:
+        return 252
+    elif median_days <= 8:
+        return 52
+    elif median_days <= 35:
+        return 12
+    elif median_days <= 100:
+        return 4
+    else:
+        return 1
+
+
+__all__ = [
+    "detect_extreme_outliers",
+    "detect_internal_nan",
+    "fill_first_nan",
+    "_infer_periods_per_year",
+]

@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 
-# ============== TURNOVER ANALYSIS ============== #  
+# ============== TURNOVER ANALYSIS ============== #
 
 def calculate_autocorrelation(factor_ts, lag=1):
     """
@@ -60,12 +60,12 @@ def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Ser
 
     """
     Compute the turnover rate for a specific quantile.
-    
+
     Parameters:
     - quantiles: DataFrame where each row is a time period, each column is an asset,
                 and values represent the quantile assignments
     - target_quantile: The specific quantile to calculate turnover for
-    
+
     Returns:
     - pd.Series with turnover rates for each time period
     """
@@ -88,37 +88,35 @@ def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Ser
 def compute_quantiles_turnover(quantiles: pd.DataFrame) -> pd.DataFrame:
     """
     Compute turnover rates for all quantiles in a DataFrame, proportion of holdings that changed quantiles.
-    
+
     Parameters:
     - quantiles: DataFrame where each row is a time period, columns are assets,
                 values represent quantile assignments (typically integers)
-    
+
     Returns:
     - DataFrame with turnover rates for each quantile over time
     """
     # Get actual unique quantiles present in the data
     quantile_values = pd.unique(quantiles.values.ravel())
     quantile_list = sorted([q for q in quantile_values if pd.notnull(q)])
-    
+
     turnover_dict = {}
-    
+
     for q in quantile_list:
         try:
             # Calculate turnover for each quantile with error handling
             turnover_series = compute_quantile_turnover(quantiles, target_quantile=q)
-            
+
             # Handle empty results and division by zero cases
             if not turnover_series.empty:
                 turnover_dict[f"Q{int(q)}"] = turnover_series.replace([np.inf, -np.inf], np.nan)
-        
+
         except ZeroDivisionError:
             print(f"Warning: No holdings in quantile {q} for some periods")
             turnover_dict[f"Q{int(q)}"] = pd.Series(index=quantiles.index, data=np.nan)
-    
+
     # Create DataFrame and align all series by index
     quantiles_turnover_df = pd.DataFrame(turnover_dict).reindex(quantiles.index).dropna(how = "all")
     quantiles_turnover_df.columns = turnover_dict.keys()
-    
+
     return quantiles_turnover_df
-
-
