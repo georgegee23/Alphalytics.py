@@ -82,6 +82,7 @@ __all__ = [
     "plot_ic_hist", "qqplot_ic", "plot_ic_summary",
     "plot_factor_decay", "plot_forward_returns",
     "plot_quantiles_annual_turnover",
+    "plot_rolling_information_ratio",
     # utils
     "detect_extreme_outliers", "detect_internal_nan", "fill_first_nan",
 ]

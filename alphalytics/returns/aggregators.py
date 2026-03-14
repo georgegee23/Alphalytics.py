@@ -19,23 +19,16 @@ def evaluate_consistency(
     periods_per_year: int = 12,
     formatted: bool = False
 ) -> pd.DataFrame:
-    """
-    Evaluates the relative consistency and active risk of one or multiple strategies.
+    """Evaluates the relative consistency and active risk of one or multiple strategies.
 
-    Parameters
-    ----------
-    strategy_returns : pd.Series or pd.DataFrame
-        Periodic returns for the strategy/strategies.
-    benchmark_returns : pd.Series
-        Periodic returns for the benchmark.
-    periods_per_year : int
-        Annualization factor (252 for daily, 12 for monthly).
-    formatted : bool
-        If True, returns strings with %, x, and decimals. If False, returns raw floats.
+    Args:
+        strategy_returns: Periodic returns for the strategy/strategies.
+        benchmark_returns: Periodic returns for the benchmark.
+        periods_per_year: Annualization factor (252 for daily, 12 for monthly).
+        formatted: If True, returns strings with %, x, and decimals.
+            If False, returns raw floats.
 
-    Returns
-    -------
-    pd.DataFrame
+    Returns:
         A tearsheet with strategies as rows and consistency/risk metrics as columns.
     """
     if isinstance(strategy_returns, pd.Series):

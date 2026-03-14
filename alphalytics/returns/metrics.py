@@ -88,20 +88,15 @@ def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.S
     return si_ret
 
 def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.DataFrame:
-    """
-    Builds a standard institutional performance table (1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, SI).
+    """Builds a standard institutional performance table (1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, SI).
+
     Forces an apples-to-apples comparison by aligning all dates first.
 
-    Parameters
-    ----------
-    rets : pd.DataFrame
-        Periodic returns of the strategies.
-    periods_per_year : int, default 12
-        Frequency of the data (12 for monthly, 252 for daily).
+    Args:
+        rets: Periodic returns of the strategies.
+        periods_per_year: Frequency of the data (12 for monthly, 252 for daily).
 
-    Returns
-    -------
-    pd.DataFrame
+    Returns:
         A table where rows are strategies and columns are trailing timeframes.
     """
     # 1. Align all data to guarantee apples-to-apples comparison
@@ -143,16 +138,11 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
     """Compute cumulative growth from a DataFrame of periodic returns.
 
-    Parameters
-    ----------
-    returns : pd.DataFrame
-        Periodic returns in decimal form with a DatetimeIndex.
-    init_value : float, optional
-        Starting value for the growth series. Default is 1.0.
+    Args:
+        returns: Periodic returns in decimal form with a DatetimeIndex.
+        init_value: Starting value for the growth series.
 
-    Returns
-    -------
-    pd.DataFrame
+    Returns:
         Cumulative growth values, prepended with an initial-value row
         if the index frequency can be inferred.
     """

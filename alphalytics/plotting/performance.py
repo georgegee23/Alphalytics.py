@@ -23,20 +23,15 @@ def plot_growth(returns: pd.DataFrame, initial_value: int = 100,
     Compounds periodic returns into a growth-of-investment chart,
     formatted with dollar values on the y-axis.
 
-    Parameters
-    ----------
-    returns : pd.DataFrame
-        Periodic returns with a DatetimeIndex. Each column is a separate series.
-    initial_value : int, optional
-        Starting investment amount in dollars. Default is 100.
-    highlight : str, optional
-        Column name to emphasize. All other series are dimmed to 30% opacity.
-    figsize : tuple, optional
-        Figure dimensions (width, height) in inches. Falls back to style default.
+    Args:
+        returns: Periodic returns with a DatetimeIndex. Each column is
+            a separate series.
+        initial_value: Starting investment amount in dollars.
+        highlight: Column name to emphasize. All other series are dimmed
+            to 30% opacity.
+        figsize: Figure dimensions (width, height) in inches.
 
-    Returns
-    -------
-    tuple[plt.Figure, plt.Axes]
+    Returns:
         The matplotlib Figure and Axes objects for further customization.
     """
 
@@ -183,41 +178,29 @@ def plot_risk_return(strategy_returns: pd.Series, benchmark_returns: pd.Series, 
 def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6,
                       markers=None, markersize=150, colors=None,
                       center=1, min_distance=0.001):
-    """
-    Creates a symmetric scatter plot centered around a specified value with crosshairs.
+    """Creates a symmetric scatter plot centered around a specified value with crosshairs.
 
-    This visualization is designed for relative performance metrics (e.g., Up/Down
-    Capture Ratios, Alpha vs. Beta) where axes share a common scale and a theoretical
-    anchor point. It dynamically scales the axes symmetrically based on the maximum
+    Designed for relative performance metrics (e.g., Up/Down Capture Ratios,
+    Alpha vs. Beta) where axes share a common scale and a theoretical anchor
+    point. Dynamically scales the axes symmetrically based on the maximum
     deviation from the center.
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        DataFrame containing the data to plot. The index is used to label the legend.
-        The first column maps to the X-axis, and the second column maps to the Y-axis.
-    figsize : tuple, default (3, 3)
-        The dimensions (width, height) of the figure in inches.
-    title : str, optional
-        The title of the plot.
-    fontsize : int or float, default 6
-        The base font size applied to the title, axis labels, tick marks, and legend.
-    markers : str, list, or dict, optional
-        The marker style for the scatter points. Pass a single string for uniform
-        shapes, or a dictionary mapping index names to distinct shapes. Default is 'o'.
-    markersize : int or float, default 200
-        The size of the scatter plot markers.
-    colors : list or str, optional
-        Color palette or list of colors to apply to the plotted points. If None,
-        Seaborn's default palette is used.
-    center : int or float, default 1
-        The anchor value where the X and Y crosshairs intersect.
-    min_distance : float, default 0.001
-        The minimum enforced distance from the center to the axis limits.
+    Args:
+        data: DataFrame containing the data to plot. The index labels the
+            legend. First column maps to X-axis, second to Y-axis.
+        figsize: The dimensions (width, height) of the figure in inches.
+        title: The title of the plot.
+        fontsize: Base font size for title, axis labels, ticks, and legend.
+        markers: Marker style for scatter points. Pass a single string for
+            uniform shapes, or a dict mapping index names to shapes.
+        markersize: The size of the scatter plot markers.
+        colors: Color palette or list of colors. If None, Seaborn's default
+            palette is used.
+        center: The anchor value where the X and Y crosshairs intersect.
+        min_distance: Minimum enforced distance from center to axis limits.
 
-    Returns
-    -------
-    fig, ax : The generated matplotlib figure and axes objects.
+    Returns:
+        The generated matplotlib Figure and Axes objects.
     """
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -279,50 +262,33 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
                         title='Up vs. Down Market Capture',
                         fontsize=7,
                         markers=['o']):
-    """
-    High-level wrapper that calculates and plots Up/Down Capture ratios.
+    """High-level wrapper that calculates and plots Up/Down Capture ratios.
 
-    This function acts as an orchestrator, bridging the mathematical calculation
-    (`capture_ratios`) and the visualization (`plot_xy_symmetric`). It allows
-    users to generate a complete capture ratio scatter plot directly from raw
-    periodic return series.
+    Bridges ``capture_ratios()`` and ``plot_xy_symmetric()`` to generate a
+    complete capture ratio scatter plot directly from raw periodic returns.
 
-    Parameters
-    ----------
-    strategy_returns : pd.DataFrame
-        Periodic returns of the strategies. Each column should represent a
-        distinct strategy or asset, and the index should be datetime.
-    benchmark_returns : pd.Series
-        Periodic returns of the benchmark to calculate the capture against.
-        Must be aligned or alignable with `strategy_returns`.
-    figsize : tuple, default (3, 3)
-        The dimensions (width, height) of the figure in inches.
-    colors : list or str, optional
-        Color palette or list of colors to apply to the plotted strategies.
-        If None, Seaborn's default palette is used.
-    title : str, default 'Up vs. Down Market Capture'
-        The title displayed at the top of the plot.
-    fontsize : int or float, default 6
-        The base font size applied to the title, axis labels, tick marks,
-        and legend.
-    markers : str, list, or dict, optional
-        The marker style for the scatter points. Pass a single string for uniform
-        shapes, or a dictionary mapping index names to distinct shapes. Default is 'o'.
+    Args:
+        strategy_returns: Periodic returns of the strategies. Each column
+            should represent a distinct strategy or asset.
+        benchmark_returns: Periodic returns of the benchmark to calculate
+            the capture against.
+        figsize: The dimensions (width, height) of the figure in inches.
+        colors: Color palette or list of colors. If None, Seaborn's default
+            palette is used.
+        title: The title displayed at the top of the plot.
+        fontsize: Base font size for title, axis labels, ticks, and legend.
+        markers: Marker style for scatter points. Pass a single string for
+            uniform shapes, or a dict mapping index names to shapes.
 
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The generated matplotlib figure.
-    ax : matplotlib.axes.Axes
-        The axes containing the plotted data.
+    Returns:
+        The generated matplotlib Figure and Axes objects.
 
-    Example
-    -------
-    >>> fig, ax = plot_capture_ratios(
-    ...     strategy_returns=my_funds_df,
-    ...     benchmark_returns=sp500_series,
-    ...     title="Manager Capture Analysis"
-    ... )
+    Example:
+        >>> fig, ax = plot_capture_ratios(
+        ...     strategy_returns=my_funds_df,
+        ...     benchmark_returns=sp500_series,
+        ...     title="Manager Capture Analysis"
+        ... )
     """
 
     # Compute Capture Dataframe
@@ -492,39 +458,25 @@ def plot_rolling_overunder(strategy_returns: pd.Series, benchmark_returns: pd.Se
     indicate benchmark outperformance. Shaded regions and hit-rate
     statistics make relative performance easy to read at a glance.
 
-    1. The Legend (Batting Average): Tells you how often you get a hit.
-    2. The Scatter Plot (Slugging Percentage): Shows you if your hits are
-    singles or home runs. If your strategy's dots in the green zone are way up at the top,
-    but the dots in the red zone are clustered right against the line,
-    it means when you win, you win big, and when you lose, you barely lose.
+    Args:
+        strategy_returns: Periodic returns for the strategy in decimal form.
+            The Series name is used as the display label.
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+            The Series name is used as the display label.
+        window: Rolling window size in periods.
+        figsize: Figure dimensions (width, height) in inches. A square shape
+            (e.g. 8, 8) pairs best with the equal aspect ratio.
 
-    Parameters
-    ----------
-    strategy_returns : pd.Series
-        Periodic returns for the strategy in decimal form.
-        The Series name is used as the display label.
-    benchmark_returns : pd.Series
-        Periodic returns for the benchmark in decimal form.
-        The Series name is used as the display label.
-    window : int, optional
-        Rolling window size in periods. Default is 12.
-    figsize : tuple, optional
-        Figure dimensions (width, height) in inches. A square shape
-        (e.g. 8, 8) pairs best with the equal aspect ratio.
-
-    Returns
-    -------
-    tuple[plt.Figure, plt.Axes]
+    Returns:
         The matplotlib Figure and Axes objects for further customization.
 
-    Notes
-    -----
-    Rolling returns are computed using log-sum-exp for numerical
-    stability: ``np.exp(np.log1p(r).rolling(w).sum()) - 1``.
+    Note:
+        Rolling returns are computed using log-sum-exp for numerical
+        stability: ``np.exp(np.log1p(r).rolling(w).sum()) - 1``.
 
-    Colors for shaded regions, reference lines, and the legend frame
-    are pulled dynamically from the active matplotlib style, so the
-    chart adapts to any theme.
+        Colors for shaded regions, reference lines, and the legend frame
+        are pulled dynamically from the active matplotlib style, so the
+        chart adapts to any theme.
     """
 
     # Use the Series name if it exists; otherwise, fall back to the default argument
@@ -615,25 +567,18 @@ def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFra
     plots it as a time series. For a single strategy, positive and
     negative regions are shaded for quick visual assessment.
 
-    Parameters
-    ----------
-    strategy_returns : pd.Series or pd.DataFrame
-        Periodic returns in decimal form. Series name or DataFrame
-        column names are used as display labels.
-    benchmark_returns : pd.Series
-        Periodic returns for the benchmark in decimal form.
-        The Series name is used as the display label.
-    window : int
-        Rolling window size in periods.
-    periods_per_year : int, optional
-        Annualization factor. If None, inferred from the index frequency
-        (252 for daily, 52 for weekly, 12 for monthly, 4 for quarterly).
-    figsize : tuple, optional
-        Figure dimensions (width, height) in inches.
+    Args:
+        strategy_returns: Periodic returns in decimal form. Series name or
+            DataFrame column names are used as display labels.
+        benchmark_returns: Periodic returns for the benchmark in decimal
+            form. The Series name is used as the display label.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from
+            the index frequency (252 daily, 52 weekly, 12 monthly,
+            4 quarterly).
+        figsize: Figure dimensions (width, height) in inches.
 
-    Returns
-    -------
-    tuple[plt.Figure, plt.Axes]
+    Returns:
         The matplotlib Figure and Axes objects for further customization.
     """
 

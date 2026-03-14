@@ -27,28 +27,24 @@ def plot_factor_data(factor_data: pd.DataFrame):
 
 
 def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 52) -> None:
-    """
-    Plot various risk metrics for quantile returns.
+    """Plot various risk metrics for quantile returns.
 
-    Parameters:
-    -----------
-    quantile_returns : pd.DataFrame
-        DataFrame containing returns for different quantiles (columns) with datetime index.
-    benchmark : pd.Series, optional
-        Benchmark returns series with matching datetime index. If None, defaults to equal-weighted universe.
-    periods : int, default 52
-        Number of periods per year (e.g., 52 for weekly data, 252 for daily data).
+    Args:
+        quantile_returns: DataFrame containing returns for different
+            quantiles (columns) with datetime index.
+        benchmark: Benchmark returns series with matching datetime index.
+            If None, defaults to equal-weighted universe.
+        periods_per_year: Number of periods per year (e.g., 52 for weekly,
+            252 for daily data).
 
     Returns:
-    --------
-    None
-        This function does not return any value. It displays the plots.
+        The matplotlib Figure and tuple of Axes objects.
 
-    Notes:
-    ------
-    - The function creates a figure with multiple subplots to display various risk metrics.
-    - Metrics include Annualized Return, Volatility, Sharpe Ratio, Beta, Alpha, Tail Ratio, Sortino Ratio, Calmar Ratio, Max Drawdown, and Drawdowns.
-    - The CAPM metrics (Beta and Alpha) are computed using the `compute_capm` function.
+    Note:
+        - Creates a figure with multiple subplots displaying Annualized
+          Return, Volatility, Sharpe Ratio, Beta, Alpha, Tail Ratio,
+          Sortino Ratio, Calmar Ratio, Max Drawdown, and Drawdowns.
+        - CAPM metrics are computed using ``compute_capm()``.
     """
     font_size, width = 10, 0.8
 
@@ -359,33 +355,25 @@ def plot_factor_decay(factor_data:pd.DataFrame, returns:pd.DataFrame, max_horizo
 
 def plot_forward_returns(returns: pd.DataFrame, quantiles: pd.DataFrame, periods: list,
                         periods_label: str = "Days", fig_size: tuple = (10, 6)):
-    """
-    Plot forward returns and risk-adjusted returns across multiple periods.
+    """Plot forward returns and risk-adjusted returns across multiple periods.
 
-    This function generates a grid of bar plots, with the top row showing cumulative
-    forward returns and the bottom row showing risk-adjusted returns (mean returns
-    divided by standard deviation) for specified periods.
+    Generates a grid of bar plots, with the top row showing cumulative
+    forward returns and the bottom row showing risk-adjusted returns
+    (mean returns divided by standard deviation) for specified periods.
 
-    Parameters
-    ----------
-    returns : pd.DataFrame
-        DataFrame containing returns data, typically with dates as index and assets/quantiles as columns.
-    quantiles : pd.DataFrame
-        DataFrame defining quantile groups for the returns, aligned with `returns`.
-    periods : list
-        List of integers representing the forward periods to analyze (e.g., [17, 26, 52]).
-    periods_label : str, optional
-        Label for the periods in the subplot titles (e.g., "Days", "Weeks"). Default is "Days".
-    fig_size : tuple, optional
-        Figure size as (width, height) in inches. Default is (10, 6).
+    Args:
+        returns: DataFrame containing returns data, typically with dates
+            as index and assets/quantiles as columns.
+        quantiles: DataFrame defining quantile groups for the returns,
+            aligned with ``returns``.
+        periods: List of integers representing the forward periods to
+            analyze (e.g., [17, 26, 52]).
+        periods_label: Label for the periods in the subplot titles
+            (e.g., "Days", "Weeks").
+        fig_size: Figure size as (width, height) in inches.
 
-    Notes
-    -----
-    - The function assumes `compute_forward_quantile_returns` is defined elsewhere and
-      returns a DataFrame of forward returns.
-    - Subplot titles are formatted as "{period}-{periods_label}" (e.g., "17-Days").
-    - Y-axes are formatted as percentages, and horizontal grids are added for readability.
-    - The main figure title is "Forward Returns Analysis".
+    Returns:
+        The matplotlib Figure and Axes array.
     """
     n_rows = 2
     n_columns = len(periods)

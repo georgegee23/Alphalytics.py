@@ -2,6 +2,7 @@ from .performance import (
     plot_growth, plot_cumulative_performance, plot_risk_return,
     plot_capture_ratios, plot_batting_averages,
     plot_area, plot_rolling_overunder, plot_xy_symmetric,
+    plot_rolling_information_ratio,
 )
 
 from .factors import (
