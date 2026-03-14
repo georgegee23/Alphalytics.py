@@ -602,3 +602,109 @@ def plot_rolling_overunder(strategy_returns: pd.Series, benchmark_returns: pd.Se
     ax.text(0, 1.02, subtitle, transform=ax.transAxes, fontsize=10, color=text_color)
 
     return fig, ax
+
+
+def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None, figsize: tuple = (10, 6)) -> tuple[plt.Figure, plt.Axes]:
+
+    """Plot rolling information ratio for one or more strategies vs a benchmark.
+
+    Computes the rolling annualized information ratio (mean excess return
+    divided by tracking error, scaled by sqrt of periods per year) and
+    plots it as a time series. For a single strategy, positive and
+    negative regions are shaded for quick visual assessment.
+
+    Parameters
+    ----------
+    strategy_returns : pd.Series or pd.DataFrame
+        Periodic returns in decimal form. Series name or DataFrame
+        column names are used as display labels.
+    benchmark_returns : pd.Series
+        Periodic returns for the benchmark in decimal form.
+        The Series name is used as the display label.
+    window : int
+        Rolling window size in periods.
+    periods_per_year : int, optional
+        Annualization factor. If None, inferred from the index frequency
+        (252 for daily, 52 for weekly, 12 for monthly, 4 for quarterly).
+    figsize : tuple, optional
+        Figure dimensions (width, height) in inches.
+
+    Returns
+    -------
+    tuple[plt.Figure, plt.Axes]
+        The matplotlib Figure and Axes objects for further customization.
+    """
+
+    # 1. Standardize input
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns
+
+    benchmark_name = benchmark_returns.name or "Benchmark"
+
+    # 2. Align data on the index
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    # 3. Infer annualization factor if not provided
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(strat_df.index)
+
+    # 4. Vectorized rolling IR calculation
+    excess_returns = strat_df.sub(bench, axis=0).dropna()
+    rolling_mean = excess_returns.rolling(window=window).mean()
+    rolling_std = excess_returns.rolling(window=window).std(ddof=1)
+
+    rolling_ir = (rolling_mean / rolling_std) * np.sqrt(periods_per_year)
+    rolling_ir = rolling_ir.replace([np.inf, -np.inf], np.nan).dropna(how="all")
+
+    # 5. Initialize plot and pull active style colors
+    fig, ax = plt.subplots(figsize=figsize)
+    text_color = plt.rcParams.get("text.color", "#333333")
+    grid_color = plt.rcParams.get("grid.color", "#E0E0E0")
+    bg_color = ax.get_facecolor()
+
+    # 6. Plot lines
+    num_strategies = len(rolling_ir.columns)
+
+    for col in rolling_ir.columns:
+        ax.plot(rolling_ir.index, rolling_ir[col], linewidth=2, zorder=3, label=col)
+
+        # Shade positive/negative regions for single-strategy plots
+        if num_strategies == 1:
+            ax.fill_between(
+                rolling_ir.index, rolling_ir[col], 0,
+                where=(rolling_ir[col] >= 0), color="C0", alpha=0.3, zorder=1, interpolate=True,
+            )
+            ax.fill_between(
+                rolling_ir.index, rolling_ir[col], 0,
+                where=(rolling_ir[col] < 0), color="C1", alpha=0.3, zorder=1, interpolate=True,
+            )
+
+    # 7. Neutral reference line
+    ax.axhline(0, color=text_color, linewidth=1.5, linestyle="--", zorder=2, alpha=0.7)
+
+    # 8. Formatting & legend
+    ax.set_ylabel("Information Ratio")
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f"{x:.2f}"))
+
+    ax.legend(
+        loc="best", frameon=True, facecolor=bg_color,
+        edgecolor=grid_color, framealpha=0.9, borderpad=1,
+    )
+
+    # 9. Title and subtitle
+    ax.set_title(
+        f"Rolling {window}-Period Information Ratio",
+        loc="left", fontweight="bold", fontsize=16, pad=25,
+    )
+
+    start_date = rolling_ir.index.min().strftime("%m/%d/%Y")
+    end_date = rolling_ir.index.max().strftime("%m/%d/%Y")
+    subtitle = f"Benchmark: {benchmark_name} | Time Period: {start_date} to {end_date}"
+
+    ax.text(0, 1.02, subtitle, transform=ax.transAxes, fontsize=10, color=text_color)
+
+    return fig, ax
