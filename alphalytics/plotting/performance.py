@@ -1,7 +1,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import Union, List
+from typing import Union, List, Tuple, Optional
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import matplotlib.patches as mpatches
@@ -557,15 +557,138 @@ def plot_rolling_overunder(strategy_returns: pd.Series, benchmark_returns: pd.Se
     return fig, ax
 
 
-def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
-    window: int, periods_per_year: int = None, figsize: tuple = (10, 6)) -> tuple[plt.Figure, plt.Axes]:
+from typing import Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import numpy as np
+import pandas as pd
+
+
+def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
+    """Infer the number of periods per year from a DatetimeIndex.
+
+    Args:
+        index: The datetime index to analyze.
+
+    Returns:
+        Estimated periods per year (252 for daily, 52 for weekly,
+        12 for monthly, 4 for quarterly, 1 for annual).
+    """
+    if len(index) < 2:
+        return 12  # default to monthly
+
+    median_days = pd.Series(index).diff().dt.days.median()
+
+    if median_days <= 3:
+        return 252
+    elif median_days <= 8:
+        return 52
+    elif median_days <= 35:
+        return 12
+    elif median_days <= 100:
+        return 4
+    else:
+        return 1
+
+
+def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None) -> pd.DataFrame:
+    """Compute rolling annualized information ratio for one or more strategies.
+
+    The information ratio is defined as the annualized mean excess return
+    divided by the annualized tracking error over a rolling window.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form. Series name or
+            DataFrame column names are used as output labels.
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from
+            the index frequency (252 daily, 52 weekly, 12 monthly,
+            4 quarterly).
+
+    Returns:
+        DataFrame of rolling information ratios with one column per strategy.
+    """
+    # Standardize input
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    # Align on common index
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    # Infer annualization factor if not provided
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(strat_df.index)
+
+    # Rolling IR calculation
+    excess_returns = strat_df.sub(bench, axis=0).dropna()
+    rolling_mean = excess_returns.rolling(window=window).mean()
+    rolling_std = excess_returns.rolling(window=window).std(ddof=1)
+
+    rolling_ir = (rolling_mean / rolling_std) * np.sqrt(periods_per_year)
+    rolling_ir = rolling_ir.replace([np.inf, -np.inf], np.nan).dropna(how="all")
+
+    return rolling_ir
+
+
+def plot_rolling_metrics(data: Union[pd.Series, pd.DataFrame], figsize: tuple = (10, 6),
+    is_percentage: bool = True, title: Optional[str] = None) -> Tuple[plt.Figure, plt.Axes]:
+    """Plot a DataFrame or Series of rolling metrics using pure Matplotlib.
+
+    Parameters
+    ----------
+    data : pd.Series or pd.DataFrame
+        Time series data to plot. Each DataFrame column is a separate line.
+    figsize : tuple, default (10, 6)
+        Figure dimensions (width, height).
+    is_percentage : bool, default True
+        If True, formats the Y-axis as percentages (e.g., 5.0%).
+    title : str, optional
+        Title for the chart.
+
+    Returns
+    -------
+    Tuple[plt.Figure, plt.Axes]
+        Figure and Axes for further customization.
+    """
+    if not isinstance(data, (pd.Series, pd.DataFrame)):
+        raise TypeError(f"Expected pd.Series or pd.DataFrame, got {type(data)}")
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if isinstance(data, pd.Series):
+        label = data.name if data.name is not None else "Series"
+        ax.plot(data.index, data.values, label=label, linewidth=1.5)
+    else:
+        for column in data.columns:
+            ax.plot(data.index, data[column].values, label=str(column), linewidth=1.5)
+
+    if is_percentage:
+        ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y:.1%}"))
+
+    if title:
+        ax.set_title(title)
+
+    if isinstance(data.index, pd.DatetimeIndex):
+        fig.autofmt_xdate()
+
+    ax.legend(loc="upper left", frameon=True, framealpha=0.9)
+
+    return fig, ax
+
+
+def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None, figsize: tuple = (10, 6)) -> Tuple[plt.Figure, plt.Axes]:
     """Plot rolling information ratio for one or more strategies vs a benchmark.
 
-    Computes the rolling annualized information ratio (mean excess return
-    divided by tracking error, scaled by sqrt of periods per year) and
-    plots it as a time series. For a single strategy, positive and
-    negative regions are shaded for quick visual assessment.
+    Computes the rolling annualized information ratio and plots it as a
+    time series. For a single strategy, positive and negative regions are
+    shaded for quick visual assessment.
 
     Args:
         strategy_returns: Periodic returns in decimal form. Series name or
@@ -574,65 +697,49 @@ def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFra
             form. The Series name is used as the display label.
         window: Rolling window size in periods.
         periods_per_year: Annualization factor. If None, inferred from
-            the index frequency (252 daily, 52 weekly, 12 monthly,
-            4 quarterly).
+            the index frequency.
         figsize: Figure dimensions (width, height) in inches.
 
     Returns:
         The matplotlib Figure and Axes objects for further customization.
     """
-
-    # 1. Standardize input
-    if isinstance(strategy_returns, pd.Series):
-        strategy_name = strategy_returns.name or "Strategy"
-        strat_df = strategy_returns.to_frame(name=strategy_name)
-    else:
-        strat_df = strategy_returns
-
     benchmark_name = benchmark_returns.name or "Benchmark"
 
-    # 2. Align data on the index
-    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+    # Compute rolling IR via the standalone function
+    rolling_ir = rolling_information_ratio(
+        strategy_returns, benchmark_returns, window, periods_per_year
+    )
 
-    # 3. Infer annualization factor if not provided
-    if periods_per_year is None:
-        periods_per_year = _infer_periods_per_year(strat_df.index)
+    # Base chart via the generic plotter (IR is not a percentage)
+    fig, ax = plot_rolling_metrics(
+        data=rolling_ir,
+        figsize=figsize,
+        is_percentage=False,
+        title=None,
+    )
 
-    # 4. Vectorized rolling IR calculation
-    excess_returns = strat_df.sub(bench, axis=0).dropna()
-    rolling_mean = excess_returns.rolling(window=window).mean()
-    rolling_std = excess_returns.rolling(window=window).std(ddof=1)
+    # --- IR-specific customizations layered on top ---
 
-    rolling_ir = (rolling_mean / rolling_std) * np.sqrt(periods_per_year)
-    rolling_ir = rolling_ir.replace([np.inf, -np.inf], np.nan).dropna(how="all")
-
-    # 5. Initialize plot and pull active style colors
-    fig, ax = plt.subplots(figsize=figsize)
-    text_color = plt.rcParams.get("text.color", "#333333")
-    grid_color = plt.rcParams.get("grid.color", "#E0E0E0")
+    text_color = plt.rcParams["text.color"]
+    grid_color = plt.rcParams["grid.color"]
     bg_color = ax.get_facecolor()
 
-    # 6. Plot lines
-    num_strategies = len(rolling_ir.columns)
+    # Shade positive/negative regions for single-strategy plots
+    if len(rolling_ir.columns) == 1:
+        col = rolling_ir.columns[0]
+        ax.fill_between(
+            rolling_ir.index, rolling_ir[col], 0,
+            where=(rolling_ir[col] >= 0), color="C0", alpha=0.3, zorder=1, interpolate=True,
+        )
+        ax.fill_between(
+            rolling_ir.index, rolling_ir[col], 0,
+            where=(rolling_ir[col] < 0), color="C1", alpha=0.3, zorder=1, interpolate=True,
+        )
 
-    for col in rolling_ir.columns:
-        ax.plot(rolling_ir.index, rolling_ir[col], linewidth=2, zorder=3, label=col)
-
-        # Shade positive/negative regions for single-strategy plots
-        if num_strategies == 1:
-            ax.fill_between(
-                rolling_ir.index, rolling_ir[col], 0,
-                where=(rolling_ir[col] >= 0), color="C0", alpha=0.3, zorder=1, interpolate=True,
-            )
-            ax.fill_between(
-                rolling_ir.index, rolling_ir[col], 0,
-                where=(rolling_ir[col] < 0), color="C1", alpha=0.3, zorder=1, interpolate=True,
-            )
-
-    # 7. Neutral reference line
+    # Neutral reference line
     ax.axhline(0, color=text_color, linewidth=1.5, linestyle="--", zorder=2, alpha=0.7)
 
-    # 8. Formatting & legend
+    # Override formatting from base plotter
     ax.set_ylabel("Information Ratio")
     ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f"{x:.2f}"))
 
@@ -641,7 +748,7 @@ def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFra
         edgecolor=grid_color, framealpha=0.9, borderpad=1,
     )
 
-    # 9. Title and subtitle
+    # Title and subtitle
     ax.set_title(
         f"Rolling {window}-Period Information Ratio",
         loc="left", fontweight="bold", fontsize=16, pad=25,

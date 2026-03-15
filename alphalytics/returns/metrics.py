@@ -1,7 +1,10 @@
 
 import pandas as pd
 import numpy as np
+from typing import Union, Optional
 import warnings
+
+from alphalytics.utils import _infer_periods_per_year
 
 
 # ============== RETURNS FUNCTIONS ============== #
@@ -162,3 +165,59 @@ def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:
         )
 
     return cumulative_growth
+
+
+def annualized_rolling_return(returns: Union[pd.Series, pd.DataFrame], window: int,
+    periods_per_year: Optional[int] = None) -> Union[pd.Series, pd.DataFrame]:
+
+    """
+    Calculates the annualized rolling return for a time series or DataFrame
+    of simple periodic returns.
+
+    Parameters
+    ----------
+    returns : pd.Series or pd.DataFrame
+        Simple periodic returns (e.g., 0.01 for 1%). Each column in a
+        DataFrame is processed independently.
+    window : int
+        Rolling window size in periods (e.g., 252 for 1-year on daily data).
+    periods_per_year : int, optional
+        Periods in a year. Inferred from a DatetimeIndex if not provided.
+
+    Returns
+    -------
+    pd.Series or pd.DataFrame
+        Annualized rolling returns with NaN for the first (window - 1) rows.
+        Shape matches the input — NaN rows are NOT dropped.
+
+    Notes
+    -----
+    Period inference relies on `alpha._infer_periods_per_year`.
+    """
+    if not isinstance(returns, (pd.Series, pd.DataFrame)):
+        raise TypeError(f"Expected pd.Series or pd.DataFrame, got {type(returns)}")
+    if window < 1:
+        raise ValueError(f"window must be >= 1, got {window}")
+    if window > len(returns):
+        warnings.warn(
+            f"window ({window}) exceeds the length of returns ({len(returns)}). "
+            "Result will be all NaN."
+        )
+
+    if periods_per_year is None:
+        if not isinstance(returns.index, pd.DatetimeIndex):
+            raise ValueError(
+                "returns must have a DatetimeIndex to infer periods_per_year "
+                "automatically. Provide it explicitly instead."
+            )
+        periods_per_year = _infer_periods_per_year(returns.index)
+
+    if periods_per_year <= 0:
+        raise ValueError(f"periods_per_year must be positive, got {periods_per_year}")
+
+    log_returns = np.log1p(returns)
+    rolling_log_sum = log_returns.rolling(window=window).sum()
+    rolling_cumulative = np.expm1(rolling_log_sum)
+    annualization_factor = periods_per_year / window
+
+    return (1 + rolling_cumulative) ** annualization_factor - 1
