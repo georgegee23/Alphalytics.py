@@ -11,7 +11,7 @@ finally:
 from .returns import (
     return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
     cumgrowth,
-    downside_variance, sortino_ratio,
+    annual_std, downside_variance, sortino_ratio,
     compute_capm, beta, bull_bear_beta, rolling_beta,
     active_return, tracking_error, information_ratio,
     batting_average, bull_batting_average, bear_batting_average,
@@ -52,7 +52,7 @@ __all__ = [
     "return_n", "return_ytd", "ann_return", "ann_return_common_si", "performance_table",
     "cumgrowth",
     # returns.risk
-    "downside_variance", "sortino_ratio",
+    "annual_std", "downside_variance", "sortino_ratio",
     # returns.capm
     "compute_capm", "beta", "bull_bear_beta", "rolling_beta",
     # returns.relative

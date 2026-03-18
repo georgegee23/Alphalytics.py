@@ -2,8 +2,27 @@
 import pandas as pd
 import numpy as np
 
+from alphalytics.utils import _infer_periods_per_year
+
 
 # ============== RISK & RETURN METRICS ============== #
+
+def annual_std(returns: pd.DataFrame, periods_per_year: int = None, ddof: int = 1):
+    """
+    Calculates the annualized standard deviation of returns.
+    
+    Parameters:
+    returns (pd.DataFrame): Asset returns.
+    periods_per_year (int, optional): Trading periods in a year. Inferred if None.
+    ddof (int): Delta Degrees of Freedom. Defaults to 1 for sample standard deviation.
+    """
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(returns.index)
+        
+    # Explicitly pass ddof to the pandas .std() method
+    annual_std = returns.std(ddof=ddof) * np.sqrt(periods_per_year)
+
+    return annual_std
 
 def downside_variance(returns: pd.DataFrame, mar: float = 0.0, ddof: int = 1,) -> pd.Series:
     """

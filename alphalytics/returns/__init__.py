@@ -3,7 +3,7 @@ from .metrics import (
     performance_table, cumgrowth,
 )
 
-from .risk import downside_variance, sortino_ratio
+from .risk import downside_variance, annual_std, sortino_ratio
 
 from .capm import compute_capm, beta, bull_bear_beta, rolling_beta
 

@@ -188,6 +188,53 @@ def information_ratio(
 
     return float(ann_active_return / ann_tracking_error)
 
+# ==========================================
+# ROLLING INFORMATION RATIO
+# ==========================================
+
+def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None) -> pd.DataFrame:
+    """Compute rolling annualized information ratio for one or more strategies.
+
+    The information ratio is defined as the annualized mean excess return
+    divided by the annualized tracking error over a rolling window.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form. Series name or
+            DataFrame column names are used as output labels.
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from
+            the index frequency (252 daily, 52 weekly, 12 monthly,
+            4 quarterly).
+
+    Returns:
+        DataFrame of rolling information ratios with one column per strategy.
+    """
+    # Standardize input
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    # Align on common index
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    # Infer annualization factor if not provided
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(strat_df.index)
+
+    # Rolling IR calculation
+    excess_returns = strat_df.sub(bench, axis=0).dropna()
+    rolling_mean = excess_returns.rolling(window=window).mean()
+    rolling_std = excess_returns.rolling(window=window).std(ddof=1)
+
+    rolling_ir = (rolling_mean / rolling_std) * np.sqrt(periods_per_year)
+    rolling_ir = rolling_ir.replace([np.inf, -np.inf], np.nan).dropna(how="all")
+
+    return rolling_ir
+
 
 # ==========================================
 # BATTING AVERAGES (Vectorized)
