@@ -1,6 +1,6 @@
 from .metrics import (
     return_n, return_ytd, ann_return, ann_return_common_si,
-    performance_table, cumgrowth,
+    cumgrowth,
 )
 
 from .risk import downside_variance, annual_std, sortino_ratio
@@ -15,4 +15,4 @@ from .relative import (
     up_capture, down_capture, capture_ratios,
 )
 
-from .aggregators import evaluate_consistency
+from .aggregators import evaluate_consistency, performance_table
