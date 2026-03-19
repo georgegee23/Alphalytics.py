@@ -9,7 +9,7 @@ import quantstats as qs
 from scipy.stats import norm, probplot
 
 from alphalytics.returns.capm import compute_capm
-from alphalytics.returns.metrics import performance_table
+from alphalytics.returns.aggregators import performance_table
 from alphalytics.factors.ic import cs_spearmanr, compute_ic_stats, factor_decay
 from alphalytics.factors.quantiles import fwd_quantile_stats
 from alphalytics.factors.turnover import compute_quantiles_turnover
