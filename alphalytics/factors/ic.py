@@ -231,7 +231,11 @@ def factor_decay(factor: pd.DataFrame,
         rets = prices.pct_change(lag).dropna(how="all")
 
         # Calculate cross-sectional correlations
-        ic_corrs = cs_spearmanr(factor.loc[rets.index], rets)
+        ic_corrs = cs_spearmanr(factor.loc[rets.index], rets).dropna()
+
+        if len(ic_corrs) < 2:
+            decay_results[lag] = (np.nan, np.nan, np.nan)
+            continue
 
         # Test statistical significance
         t_stat, t_pval = ttest_1samp(ic_corrs, popmean=0, alternative=alternative)

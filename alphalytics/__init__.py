@@ -9,16 +9,16 @@ finally:
 
 # --- Returns-based analysis ---
 from .returns import (
-    return_n, return_ytd, ann_return, ann_return_common_si,
+    return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
     cumgrowth,
     annual_std, downside_variance, sortino_ratio,
     compute_capm, beta, bull_bear_beta, rolling_beta,
-    active_return, tracking_error, information_ratio, rolling_information_ratio, 
+    active_return, tracking_error, information_ratio,
     batting_average, bull_batting_average, bear_batting_average,
     batting_averages,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
     up_capture, down_capture, capture_ratios,
-    evaluate_consistency, performance_table
+    evaluate_consistency,
 )
 
 # --- Factor analysis ---
@@ -49,20 +49,22 @@ from .utils import detect_extreme_outliers, detect_internal_nan, fill_first_nan
 
 __all__ = [
     # returns.metrics
-    "return_n", "return_ytd", "ann_return", "ann_return_common_si",
+    "return_n", "return_ytd", "ann_return", "ann_return_common_si", "performance_table",
     "cumgrowth",
     # returns.risk
-    "annual_std", "downside_variance", "sortino_ratio",
+    "annual_std", "downside_variance",
+    # returns.ratios
+    "sortino_ratio",
     # returns.capm
     "compute_capm", "beta", "bull_bear_beta", "rolling_beta",
     # returns.relative
-    "active_return", "tracking_error", "information_ratio", "rolling_information_ratio",
+    "active_return", "tracking_error", "information_ratio",
     "batting_average", "bull_batting_average", "bear_batting_average",
     "batting_averages",
     "win_loss_ratio", "bull_win_loss_ratio", "bear_win_loss_ratio",
     "up_capture", "down_capture", "capture_ratios",
     # returns.aggregators
-    "evaluate_consistency", "performance_table",
+    "evaluate_consistency",
     # factors.ic
     "cs_spearmanr", "ts_spearmanr", "compute_ic_stats", "factor_decay",
     # factors.quantiles

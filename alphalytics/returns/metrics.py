@@ -146,7 +146,7 @@ def annualized_rolling_return(returns: Union[pd.Series, pd.DataFrame], window: i
 
     Notes
     -----
-    Period inference relies on `alpha._infer_periods_per_year`.
+    Period inference relies on `alphalytics.utils._infer_periods_per_year`.
     """
     if not isinstance(returns, (pd.Series, pd.DataFrame)):
         raise TypeError(f"Expected pd.Series or pd.DataFrame, got {type(returns)}")

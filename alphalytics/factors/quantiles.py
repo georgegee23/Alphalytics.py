@@ -100,7 +100,11 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
     # Rename columns to "Q1", "Q2", etc.
     quantile_returns.columns = [f"Q{int(col)}" for col in quantile_returns.columns]
 
-    quantile_returns.index.freq = returns.index.freq  # Preserve frequency
+    # Preserve frequency if available
+    try:
+        quantile_returns.index.freq = returns.index.freq
+    except (ValueError, AttributeError):
+        pass
 
     # Drop rows where all values are NaN (e.g., initial lagged periods)
     return quantile_returns.dropna(how="all")
@@ -143,30 +147,33 @@ def compute_mean_quantile_forward_return(returns: pd.DataFrame, quantile_holding
     """
     Compute the mean forward return of assets in a quantile over a specified number of periods.
 
-    Parameters:
-    - returns: DataFrame of periodic returns (dates x assets).
-    - quantile_holdings: Series with dates as index and lists of asset names as values.
-    - forward_periods: Number of periods to look forward.
+    Args:
+        returns: DataFrame of periodic returns (dates x assets).
+        quantile_holdings: Series with dates as index and lists of asset names as values.
+        forward_periods: Number of periods to look forward.
 
     Returns:
-    - DataFrame with dates and mean forward returns.
+        DataFrame with dates and mean forward returns.
     """
     # Compute cumulative growth and forward returns
     cumulative_growth = (returns + 1).cumprod()
-    # Compute forward returns
     forward_returns = (cumulative_growth.shift(-forward_periods) / cumulative_growth) - 1
 
-    # For each date, get the mean forward return of selected holdings
-    mean_q_dict = {}
-    for date in quantile_holdings.index:
-        if date in forward_returns.index:
-            selected_holdings = quantile_holdings.loc[date]
-            if selected_holdings:
-                mean_q_dict[date] = forward_returns.loc[date, selected_holdings].mean()
-            else:
-                mean_q_dict[date] = np.nan
+    # Build a boolean mask from quantile_holdings (True where asset is held)
+    common_dates = quantile_holdings.index.intersection(forward_returns.index)
+    mask = pd.DataFrame(False, index=common_dates, columns=returns.columns)
+    for date in common_dates:
+        holdings = quantile_holdings.loc[date]
+        if holdings:
+            valid_cols = [c for c in holdings if c in mask.columns]
+            if valid_cols:
+                mask.loc[date, valid_cols] = True
 
-    return pd.DataFrame.from_dict(mean_q_dict, orient='index', columns=['Mean'])
+    # Apply mask and compute mean across assets for each date
+    masked_returns = forward_returns.loc[common_dates].where(mask)
+    mean_fwd = masked_returns.mean(axis=1).to_frame(name='Mean')
+
+    return mean_fwd.dropna()
 
 def fwd_quantile_stats(returns: pd.DataFrame, quantiles: pd.DataFrame, forward_periods: int) -> pd.DataFrame:
     """

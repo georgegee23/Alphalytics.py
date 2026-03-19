@@ -89,12 +89,17 @@ def detect_internal_nan(df: pd.DataFrame) -> list[str]:
         if len(s) < 3:  # Too short to have interruptions "between" values
             return False
 
-        has_any_nan = s.isna().any()  # Check for any NaNs at all
-        first_not_nan = not pd.isna(s.iloc[0])  # First value is not NaN
-        last_not_nan = not pd.isna(s.iloc[-1])  # Last value is not NaN
+        # Trim leading and trailing NaN values to find the valid data range
+        first_valid = s.first_valid_index()
+        last_valid = s.last_valid_index()
 
-        # If all conditions are true, NaNs must be internal
-        return has_any_nan and first_not_nan and last_not_nan
+        if first_valid is None or last_valid is None:
+            return False  # All NaN
+
+        trimmed = s.loc[first_valid:last_valid]
+
+        # If the trimmed range has any NaN, those are internal gaps
+        return trimmed.isna().any()
 
     # List to collect qualifying column names
     columns_with_internal_nans = []

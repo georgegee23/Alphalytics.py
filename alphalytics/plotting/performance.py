@@ -9,7 +9,7 @@ import matplotlib.lines as mlines
 
 import seaborn as sns
 
-from alphalytics.returns.relative import capture_ratios
+from alphalytics.returns.relative import capture_ratios, rolling_information_ratio
 from alphalytics.utils import _infer_periods_per_year
 
 
@@ -53,7 +53,7 @@ def plot_growth(returns: pd.DataFrame, initial_value: int = 100,
 
 def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = 252) -> None:
 
-    from alphalytics.returns.metrics import performance_table
+    from alphalytics.returns.aggregators import performance_table
 
     font_size, width = 10, 0.8
 
