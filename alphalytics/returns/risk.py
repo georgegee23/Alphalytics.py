@@ -151,12 +151,12 @@ def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -
             period_volatility = period_returns.std() * np.sqrt(periods_per_year)
             
         results.append({
-            "Peak Date": peak_date.strftime('%Y-%m-%d'),
-            "Trough Date": trough_date.strftime('%Y-%m-%d'),
-            "Recovery Date": recovery_date.strftime('%Y-%m-%d') if pd.notna(recovery_date) else "N/A",
+            "Peak": peak_date.strftime('%Y-%m-%d'),
+            "Trough": trough_date.strftime('%Y-%m-%d'),
+            "Recovery": recovery_date.strftime('%Y-%m-%d') if pd.notna(recovery_date) else "N/A",
             "Depth": depth,
-            "Duration (Periods)": duration,
-            "Period Volatility (Ann)": period_volatility, # New Column
+            "Duration": duration,
+            "Volatility (Ann)": period_volatility, # New Column
             "Status": status
         })
         
