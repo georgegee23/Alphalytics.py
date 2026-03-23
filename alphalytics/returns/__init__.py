@@ -8,7 +8,10 @@ from .risk import (
     to_drawdowns, max_drawdown, top_drawdowns, average_drawdown, 
 )
 
-from .ratios import sortino_ratio
+from .ratios import (
+    sortino_ratio
+
+)
 
 from .capm import compute_capm, beta, bull_bear_beta, rolling_beta
 
