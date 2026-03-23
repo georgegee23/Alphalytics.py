@@ -3,7 +3,10 @@ from .metrics import (
     cumgrowth,
 )
 
-from .risk import downside_variance, annual_std
+from .risk import (
+    annual_std, downside_variance, 
+    to_drawdowns, max_drawdown, top_drawdowns, average_drawdown, 
+)
 
 from .ratios import sortino_ratio
 
