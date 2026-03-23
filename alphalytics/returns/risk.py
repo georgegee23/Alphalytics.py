@@ -166,7 +166,7 @@ def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -
     return df
 
 
-def caverage_drawdown(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Series]:
+def average_drawdown(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Series]:
     """
     Calculates the average daily drawdown (the mean of all underwater periods).
     

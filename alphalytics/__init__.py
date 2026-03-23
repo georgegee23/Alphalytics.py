@@ -9,6 +9,7 @@ finally:
 
 # --- Returns-based analysis ---
 from .returns import (
+
     return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
     cumgrowth,
 
@@ -57,6 +58,7 @@ __all__ = [
     "cumgrowth",
     # returns.risk
     "annual_std", "downside_variance",
+    "to_drawdowns", "max_drawdown", "top_drawdowns", "average_drawdown",
     # returns.ratios
     "sortino_ratio",
     # returns.capm
