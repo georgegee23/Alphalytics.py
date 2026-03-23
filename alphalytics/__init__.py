@@ -14,7 +14,7 @@ from .returns import (
     cumgrowth,
 
     annual_std, downside_variance, 
-    to_drawdowns, max_drawdown, top_drawdowns, average_drawdown,
+    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, average_drawdown,
     
     sortino_ratio,
     compute_capm, beta, bull_bear_beta, rolling_beta,
@@ -58,7 +58,7 @@ __all__ = [
     "cumgrowth",
     # returns.risk
     "annual_std", "downside_variance",
-    "to_drawdowns", "max_drawdown", "top_drawdowns", "average_drawdown",
+    "to_drawdowns", "max_drawdown", "top_drawdowns", "compare_drawdowns", "average_drawdown",
     # returns.ratios
     "sortino_ratio",
     # returns.capm

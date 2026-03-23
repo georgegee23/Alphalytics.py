@@ -5,7 +5,7 @@ from .metrics import (
 
 from .risk import (
     annual_std, downside_variance, 
-    to_drawdowns, max_drawdown, top_drawdowns, average_drawdown, 
+    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, average_drawdown, 
 )
 
 from .ratios import (
