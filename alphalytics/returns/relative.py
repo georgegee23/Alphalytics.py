@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from typing import Union
 
+from alphalytics.utils import _infer_periods_per_year
+
 
 # ==========================================
 # BATTING AVERAGES (Hit Rates)
