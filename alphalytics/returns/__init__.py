@@ -5,20 +5,21 @@ from .metrics import (
 
 from .risk import (
     annual_std, downside_variance, 
-    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, average_drawdown, 
+    
+    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, 
+    average_drawdown, average_drawdown_duration 
 )
 
 from .ratios import (
-    sortino_ratio
-
+    sharpe_ratio, sortino_ratio, calmar_ratio, omega_ratio,
 )
 
 from .capm import compute_capm, beta, bull_bear_beta, rolling_beta
 
 from .relative import (
     active_return, tracking_error, information_ratio, rolling_information_ratio,
-    batting_average, bull_batting_average, bear_batting_average,
-    batting_averages,
+    hit_rate, bull_hit_rate, bear_hit_rate,
+    hit_rates,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
     up_capture, down_capture, capture_ratios,
 )

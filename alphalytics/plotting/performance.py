@@ -257,11 +257,9 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
 
 
 def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series,
-                        figsize=(3, 3),
-                        colors=None,
-                        title='Up vs. Down Market Capture',
-                        fontsize=7,
-                        markers=['o']):
+                        figsize=(3, 3), colors=None, title='Up vs. Down Market Capture',
+                        fontsize=7, markers=['o']):
+                        
     """High-level wrapper that calculates and plots Up/Down Capture ratios.
 
     Bridges ``capture_ratios()`` and ``plot_xy_symmetric()`` to generate a
@@ -306,9 +304,9 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     return fig, ax
 
 
-def plot_batting_averages(strategy_returns: pd.Series, benchmark_returns: pd.Series,
+def plot_hit_rates(strategy_returns: pd.Series, benchmark_returns: pd.Series,
                           figsize=(3, 3),
-                          colors=['#1f77b4', '#ff7f0e', '#2ca02c'],
+                          colors=None,
                           title='Batting Average',
                           font_size=7):
     """
@@ -685,3 +683,151 @@ def plot_rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFra
     ax.text(0, 1.02, subtitle, transform=ax.transAxes, fontsize=10, color=text_color)
 
     return fig, ax
+
+
+def plot_compare_drawdowns(drawdown_dict: dict, figsize: tuple = None,
+    fontsize: int = 8, title: str = None) -> tuple:
+    """
+    Vertical bar chart of strategy drawdowns during benchmark stress periods.
+
+    Takes the output of ``compare_drawdowns()`` and plots one subplot per
+    benchmark drawdown period, showing each strategy's depth as a vertical bar.
+    Depths are displayed as positive values (e.g. -0.15 shown as 15%).
+
+    Args:
+        drawdown_dict: Dict returned by ``compare_drawdowns()``.
+            Keys are peak-date strings; values are DataFrames with a 'Depth' column.
+        figsize: Figure dimensions (width, height). Defaults based on number of periods.
+        fontsize: Base font size for labels and annotations.
+        title: Overall figure title. Defaults to "Strategy Drawdowns During Benchmark Stress".
+
+    Returns:
+        The matplotlib Figure and array of Axes objects.
+    """
+    n = len(drawdown_dict)
+    if n == 0:
+        fig, ax = plt.subplots()
+        ax.set_title("No drawdown periods to display")
+        return fig, ax
+
+    if figsize is None:
+        figsize = (max(4 * n, 6), 5)
+
+    fig, axes = plt.subplots(1, n, figsize=figsize, squeeze=False)
+    axes = axes.ravel()
+
+    prop_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    for i, (peak_date, df) in enumerate(drawdown_dict.items()):
+        ax = axes[i]
+        depths = df["Depth"].astype(float).abs()
+        trough_date = df["Trough"].iloc[0] if "Trough" in df.columns else ""
+
+        colors = [prop_cycle[j % len(prop_cycle)] for j in range(len(depths))]
+
+        bars = ax.bar(
+            x=depths.index,
+            height=depths.values,
+            color=colors,
+            edgecolor="none",
+        )
+
+        for bar, val in zip(bars, depths.values):
+            if pd.notna(val):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    val + 0.002,
+                    f"{val:.1%}",
+                    va="bottom", ha="center",
+                    fontsize=fontsize - 1,
+                    fontweight="bold",
+                )
+
+        ax.set_ylim(0, depths.max() * 1.15)
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1, decimals=0))
+        ax.set_title(f"{peak_date}  →  {trough_date}", fontsize=fontsize)
+        ax.tick_params(axis="x", labelsize=fontsize - 1, rotation=45)
+        ax.tick_params(axis="y", labelsize=fontsize)
+
+    fig.suptitle(
+        title or "Strategy Drawdowns During Benchmark Stress",
+        fontsize=fontsize + 2, fontweight="bold", y=1.01,
+    )
+    fig.tight_layout()
+
+    return fig, axes
+
+
+def plot_compare_drawdown_volatility(drawdown_dict: dict, figsize: tuple = None,
+    fontsize: int = 8, title: str = None) -> tuple:
+
+    """
+    Vertical bar chart of strategy volatility during benchmark stress periods.
+
+    Takes the output of ``compare_drawdowns()`` and plots one subplot per
+    benchmark drawdown period, showing each strategy's annualised volatility.
+
+    Args:
+        drawdown_dict: Dict returned by ``compare_drawdowns()``.
+            Keys are peak-date strings; values are DataFrames with a
+            'Volatility (Ann)' column.
+        figsize: Figure dimensions (width, height). Defaults based on number of periods.
+        fontsize: Base font size for labels and annotations.
+        title: Overall figure title. Defaults to "Annualised Volatility During Benchmark Stress".
+
+    Returns:
+        The matplotlib Figure and array of Axes objects.
+    """
+    
+    n = len(drawdown_dict)
+    if n == 0:
+        fig, ax = plt.subplots()
+        ax.set_title("No drawdown periods to display")
+        return fig, ax
+
+    if figsize is None:
+        figsize = (max(4 * n, 6), 5)
+
+    fig, axes = plt.subplots(1, n, figsize=figsize, squeeze=False)
+    axes = axes.ravel()
+
+    prop_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    for i, (peak_date, df) in enumerate(drawdown_dict.items()):
+        ax = axes[i]
+        vols = df["Volatility (Ann)"].astype(float)
+        trough_date = df["Trough"].iloc[0] if "Trough" in df.columns else ""
+
+        colors = [prop_cycle[j % len(prop_cycle)] for j in range(len(vols))]
+
+        bars = ax.bar(
+            x=vols.index,
+            height=vols.values,
+            color=colors,
+            edgecolor="none",
+        )
+
+        for bar, val in zip(bars, vols.values):
+            if pd.notna(val):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    val + 0.002,
+                    f"{val:.1%}",
+                    va="bottom", ha="center",
+                    fontsize=fontsize - 1,
+                    fontweight="bold",
+                )
+
+        ax.set_ylim(0, vols.max() * 1.15 if vols.notna().any() else 1)
+        ax.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1, decimals=0))
+        ax.set_title(f"{peak_date}  →  {trough_date}", fontsize=fontsize)
+        ax.tick_params(axis="x", labelsize=fontsize - 1, rotation=45)
+        ax.tick_params(axis="y", labelsize=fontsize)
+
+    fig.suptitle(
+        title or "Annualised Volatility During Benchmark Stress",
+        fontsize=fontsize + 2, fontweight="bold", y=1.01,
+    )
+    fig.tight_layout()
+
+    return fig, axes

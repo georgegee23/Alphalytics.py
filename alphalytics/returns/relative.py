@@ -7,29 +7,29 @@ from alphalytics.utils import _infer_periods_per_year
 
 
 # ==========================================
-# BATTING AVERAGES (Hit Rates)
+# HIT RATE (Batting Average)
 # ==========================================
 
-def batting_average(strategy_returns: Union[pd.Series, pd.DataFrame],
+def hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:
 
     """Overall percentage of periods the strategy beats the benchmark."""
 
     if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: batting_average(col, benchmark_returns))
+        return strategy_returns.apply(lambda col: hit_rate(col, benchmark_returns))
 
     excess = (strategy_returns - benchmark_returns).dropna()
     if excess.empty: return np.nan
 
     return float((excess > 0).mean())
 
-def bull_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame],
+def bull_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:
 
-    """Batting average only during benchmark up-markets."""
+    """Hit rate only during benchmark up-markets."""
 
     if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: bull_batting_average(col, benchmark_returns))
+        return strategy_returns.apply(lambda col: bull_hit_rate(col, benchmark_returns))
 
     strat, bench = strategy_returns.align(benchmark_returns, join='inner')
     bull_excess = strat[bench > 0] - bench[bench > 0]
@@ -38,13 +38,13 @@ def bull_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame],
 
     return float((bull_excess > 0).mean())
 
-def bear_batting_average(strategy_returns: Union[pd.Series, pd.DataFrame],
+def bear_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:
 
-    """Batting average only during benchmark down-markets."""
+    """Hit rate only during benchmark down-markets."""
 
     if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: bear_batting_average(col, benchmark_returns))
+        return strategy_returns.apply(lambda col: bear_hit_rate(col, benchmark_returns))
 
     strat, bench = strategy_returns.align(benchmark_returns, join='inner')
     bear_excess = strat[bench < 0] - bench[bench < 0]
@@ -116,11 +116,8 @@ def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
 # ACTIVE RETURN
 # ==========================================
 
-def active_return(
-    strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series,
-    periods_per_year: int = 12
-) -> Union[float, pd.Series]:
+def active_return(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    periods_per_year: int = 12) -> Union[float, pd.Series]:
     """
     Computes the annualized arithmetic mean of excess returns.
     """
@@ -169,11 +166,8 @@ def tracking_error(
 # INFORMATION RATIO
 # ==========================================
 
-def information_ratio(
-    strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series,
-    periods_per_year: int = 12
-) -> Union[float, pd.Series]:
+def information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    periods_per_year: int = 12) -> Union[float, pd.Series]:
     """
     Computes the annualized Information Ratio (Active Return / Tracking Error).
     """
@@ -239,18 +233,18 @@ def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], 
 
 
 # ==========================================
-# BATTING AVERAGES (Vectorized)
+# HIT RATES (Vectorized)
 # ==========================================
 
-def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
+def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     """
-    Calculates Overall, Up Market, and Down Market Batting Averages for multiple strategies.
+    Calculates Overall, Up Market, and Down Market Hit Rate for multiple strategies.
 
     IMPORTANT: All metrics are computed on the COMMON overlapping period only
     (i.e., dates where EVERY strategy AND the benchmark have valid returns).
     This guarantees perfect comparability across strategies.
 
-    Batting Average is the percentage of periods where the strategy outperformed the benchmark,
+    Hit Rate is the percentage of periods where the strategy outperformed the benchmark,
     expressed as a decimal (e.g., 0.65 for 65%). Up/Down markets exclude periods where benchmark == 0.
 
     Args:
@@ -258,7 +252,7 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
         benchmark (pd.Series): Periodic returns of the benchmark.
 
     Returns:
-        pd.DataFrame: Summary table with the three batting average metrics per strategy.
+        pd.DataFrame: Summary table with the three hit rate metrics per strategy.
     """
     # 1. Input validation
     if not isinstance(returns, pd.DataFrame):
@@ -275,9 +269,9 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
         # No overlapping data at all
         return pd.DataFrame(
             {
-                "Batting Average": np.nan,
-                "Up Market Batting Avg": np.nan,
-                "Down Market Batting Avg": np.nan,
+                "Hit Rate": np.nan,
+                "Up Market Hit Rate": np.nan,
+                "Down Market Hit Rate": np.nan,
             },
             index=returns.columns,
         )
@@ -285,17 +279,17 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
     aligned_returns = data[returns.columns]       # or data.drop(columns=["bench_"])
     aligned_bench = data["bench_"]
 
-    # 3. Overall Batting Average: % of time Strategy > Benchmark
+    # 3. Overall Hit Rate: % of time Strategy > Benchmark
     overall_avg = aligned_returns.gt(aligned_bench, axis=0).mean()
 
-    # 4. Up Market Batting Average: % of time Strategy > Benchmark (when Bench > 0)
+    # 4. Up Market Hit Rate: % of time Strategy > Benchmark (when Bench > 0)
     up_mask = aligned_bench > 0
     if up_mask.sum() > 0:
         up_avg = aligned_returns.loc[up_mask].gt(aligned_bench.loc[up_mask], axis=0).mean()
     else:
         up_avg = pd.Series(np.nan, index=aligned_returns.columns)
 
-    # 5. Down Market Batting Average: % of time Strategy > Benchmark (when Bench < 0)
+    # 5. Down Market Hit Rate: % of time Strategy > Benchmark (when Bench < 0)
     down_mask = aligned_bench < 0
     if down_mask.sum() > 0:
         down_avg = aligned_returns.loc[down_mask].gt(aligned_bench.loc[down_mask], axis=0).mean()
@@ -303,15 +297,15 @@ def batting_averages(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFram
         down_avg = pd.Series(np.nan, index=aligned_returns.columns)
 
     # 6. Final table
-    batting_df = pd.DataFrame(
+    hitrate_df = pd.DataFrame(
         {
-            "Batting Average": overall_avg,
-            "Up Market Batting Avg": up_avg,
-            "Down Market Batting Avg": down_avg,
+            "Hit Rate": overall_avg,
+            "Bull Hit Rate": up_avg,
+            "Bear Hit Rate": down_avg,
         }
     )
 
-    return batting_df
+    return hitrate_df
 
 
 # ==========================================
