@@ -175,3 +175,4 @@ def annualized_rolling_return(returns: Union[pd.Series, pd.DataFrame], window: i
     annualization_factor = periods_per_year / window
 
     return (1 + rolling_cumulative) ** annualization_factor - 1
+

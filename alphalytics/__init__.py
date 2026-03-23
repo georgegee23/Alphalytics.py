@@ -11,7 +11,11 @@ finally:
 from .returns import (
     return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
     cumgrowth,
-    annual_std, downside_variance, sortino_ratio,
+
+    annual_std, downside_variance, 
+    to_drawdowns, max_drawdown, top_drawdowns, average_drawdown,
+    
+    sortino_ratio,
     compute_capm, beta, bull_bear_beta, rolling_beta,
     active_return, tracking_error, information_ratio,
     batting_average, bull_batting_average, bear_batting_average,
