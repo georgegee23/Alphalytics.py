@@ -131,32 +131,31 @@ def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -
         
         if len(recovery_dates) > 0:
             recovery_date = recovery_dates[0]
-            duration = (recovery_date - peak_date).days
+            duration = len(returns.loc[peak_date:recovery_date]) - 1
             status = "Recovered"
-            end_date_for_slice = recovery_date
         else:
-            recovery_date = pd.NaT 
+            recovery_date = pd.NaT
             last_valid_date = drawdowns.dropna().index[-1]
-            duration = (last_valid_date - peak_date).days
+            duration = len(returns.loc[peak_date:last_valid_date]) - 1
             status = "Ongoing"
-            end_date_for_slice = last_valid_date
             
-        # --- NEW LOGIC: Calculate Volatility During the Drawdown ---
-        # Slice the original returns series for just this specific period
-        period_returns = returns.loc[peak_date:end_date_for_slice]
+        # Volatility during the drawdown (underwater periods only)
+        period_returns = returns.loc[group.index[0]:group.index[-1]]
 
         if periods_per_year is None:
             periods_per_year = _infer_periods_per_year(returns.index)
-        
-        # Calculate annualized standard deviation
-        period_volatility = period_returns.std() * np.sqrt(periods_per_year)
+
+        if len(period_returns) < 2:
+            period_volatility = np.nan
+        else:
+            period_volatility = period_returns.std() * np.sqrt(periods_per_year)
             
         results.append({
             "Peak Date": peak_date.strftime('%Y-%m-%d'),
             "Trough Date": trough_date.strftime('%Y-%m-%d'),
             "Recovery Date": recovery_date.strftime('%Y-%m-%d') if pd.notna(recovery_date) else "N/A",
             "Depth": depth,
-            "Duration (Days)": duration,
+            "Duration (Periods)": duration,
             "Period Volatility (Ann)": period_volatility, # New Column
             "Status": status
         })
