@@ -144,6 +144,9 @@ def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -
         # --- NEW LOGIC: Calculate Volatility During the Drawdown ---
         # Slice the original returns series for just this specific period
         period_returns = returns.loc[peak_date:end_date_for_slice]
+
+        if periods_per_year is None:
+            periods_per_year = _infer_periods_per_year(returns.index)
         
         # Calculate annualized standard deviation
         period_volatility = period_returns.std() * np.sqrt(periods_per_year)
