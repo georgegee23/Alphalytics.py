@@ -172,31 +172,22 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
     """
     Compares strategy behaviour during the benchmark's worst drawdown periods.
 
-    For each of the benchmark's top N drawdowns, calculates how every strategy
-    performed over that same peak-to-trough window and how long each took to
-    fully recover its pre-drawdown level.
-
     Args:
-        benchmark:  A pandas Series of benchmark returns.
         strategies: A pandas Series (single) or DataFrame (multiple) of strategy returns.
+        benchmark:  A pandas Series of benchmark returns.
         n:          Number of top benchmark drawdowns to analyse.
         periods_per_year: Annualisation factor (inferred from index if None).
 
     Returns:
         dict: Keyed by benchmark peak date string (e.g. '2020-02-19').
               Each value is a DataFrame with strategies as rows and columns:
-                - Return:             Cumulative return from peak to benchmark trough.
-                - Depth:              Worst drawdown experienced during the window.
-                - Volatility (Ann):   Annualised std of returns during the window.
-                - Duration (Periods): Length of the benchmark drawdown window.
-                - Recovery (Periods): Periods after the benchmark trough until the
-                                      strategy recovers its peak-date level (NaN if
-                                      unrecovered by end of series).
+                - Peak / Trough:    Period boundary dates.
+                - Depth:            Worst drawdown experienced during the window.
+                - Volatility (Ann): Annualised std of returns during the window.
     """
     if not isinstance(benchmark, pd.Series):
         raise TypeError("benchmark must be a pd.Series.")
 
-    # Normalise strategies to DataFrame
     if isinstance(strategies, pd.Series):
         strategies = strategies.to_frame()
 
@@ -214,7 +205,6 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
 
     groups = underwater.groupby(period_id[underwater.index])
 
-    # Collect (depth, peak_date, trough_date) for sorting
     periods = []
     for _, group in groups:
         prior_zeros = is_zero[:group.index[0]]
@@ -223,68 +213,41 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
         depth = group.min()
         periods.append((depth, peak_date, trough_date))
 
-    # Sort by worst depth, keep top N
     periods.sort(key=lambda x: x[0])
     periods = periods[:n]
 
-    # --- Build wealth indices once (for recovery lookups) ---
-    bench_wealth = (1 + benchmark.dropna()).cumprod()
-    strat_wealth = (1 + strategies.dropna()).cumprod()
-
     result = {}
-    for depth_bench, peak_date, trough_date in periods:
-
-        # Duration of benchmark drawdown in periods
-        window_len = len(benchmark.loc[peak_date:trough_date]) - 1
+    for _, peak_date, trough_date in periods:
 
         rows = {}
         for col in strategies.columns:
             strat = strategies[col]
 
-            # --- Return: cumulative return peak → benchmark trough ---
-            period_ret = strat.loc[peak_date:trough_date].dropna()
-            cum_return = (1 + period_ret).prod() - 1 if len(period_ret) > 0 else np.nan
-
             # --- Depth: worst drawdown during the window ---
+            period_ret = strat.loc[peak_date:trough_date].dropna()
             period_wealth = (1 + period_ret).cumprod()
             period_peak = period_wealth.cummax()
-            period_dd = ((period_wealth - period_peak) / period_peak)
+            period_dd = (period_wealth - period_peak) / period_peak
             strat_depth = period_dd.min() if len(period_dd) > 0 else np.nan
 
             # --- Volatility (annualised) ---
-            underwater_ret = strat.loc[
-                strat.loc[peak_date:trough_date].index[1]:trough_date
-            ] if len(period_ret) > 1 else pd.Series(dtype=float)
-
-            if len(underwater_ret) < 2:
+            if len(period_ret) > 2:
+                vol = period_ret.iloc[1:].std() * np.sqrt(periods_per_year)
+            else:
                 vol = np.nan
-            else:
-                vol = underwater_ret.std() * np.sqrt(periods_per_year)
-
-            # --- Recovery: periods after trough to regain peak-date level ---
-            if peak_date in strat_wealth.index:
-                peak_level = strat_wealth.loc[peak_date]
-                post_trough = strat_wealth.loc[trough_date:]
-                recovered = post_trough[post_trough >= peak_level]
-                if len(recovered) > 0:
-                    recovery_periods = len(strat.loc[trough_date:recovered.index[0]]) - 1
-                else:
-                    recovery_periods = np.nan
-            else:
-                recovery_periods = np.nan
 
             rows[col] = {
-                "Return": cum_return,
+                "Peak": peak_date.strftime('%Y-%m-%d'),
+                "Trough": trough_date.strftime('%Y-%m-%d'),
                 "Depth": strat_depth,
                 "Volatility (Ann)": vol,
-                "Duration (Periods)": window_len,
-                "Recovery (Periods)": recovery_periods,
             }
 
         key = peak_date.strftime('%Y-%m-%d')
         result[key] = pd.DataFrame(rows).T
 
     return result
+
 
 
 
