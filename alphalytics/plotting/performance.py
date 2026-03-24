@@ -9,7 +9,7 @@ import matplotlib.lines as mlines
 
 import seaborn as sns
 
-from alphalytics.returns.relative import capture_ratios, rolling_information_ratio
+from alphalytics.returns.relative import capture_ratios, hit_rate, rolling_information_ratio
 from alphalytics.utils import _infer_periods_per_year
 
 
@@ -831,3 +831,86 @@ def plot_compare_drawdown_volatility(drawdown_dict: dict, figsize: tuple = None,
     fig.tight_layout()
 
     return fig, axes
+
+
+def plot_capture_hit_rate(
+    strategy_returns: pd.DataFrame,
+    benchmark_returns: pd.Series,
+    figsize: tuple = (5, 5),
+    fontsize: int = 8,
+    colors=None,
+    markers=None,
+    markersize: int = 120,
+    title: str = "Overall Capture vs Hit Rate",
+) -> tuple:
+    """Scatter plot of Overall Capture (x) vs Hit Rate (y) per strategy.
+
+    Combines capture ratio analysis with batting average to show which
+    strategies have both favorable asymmetric capture and consistent
+    outperformance in a single view.
+
+    Args:
+        strategy_returns: Periodic returns of the strategies (one column
+            per strategy).
+        benchmark_returns: Periodic returns of the benchmark.
+        figsize: Figure dimensions (width, height) in inches.
+        fontsize: Base font size for labels, ticks, and legend.
+        colors: Color palette or list of colors. If None, Seaborn's
+            default palette is used.
+        markers: Marker style(s). A single string applies to all points;
+            a dict maps strategy names to marker shapes.
+        markersize: Size of scatter markers.
+        title: Plot title.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    # 1. Compute metrics
+    captures = capture_ratios(strategy_returns, benchmark_returns)
+    hit_rates = hit_rate(strategy_returns, benchmark_returns)
+
+    plot_data = pd.DataFrame({
+        "Overall Capture": captures["Overall Capture"],
+        "Hit Rate": hit_rates,
+    })
+    plot_data = plot_data.dropna()
+
+    # 2. Build scatter
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if markers is None:
+        markers = "o"
+    if isinstance(markers, str):
+        markers = {name: markers for name in plot_data.index}
+
+    sns.scatterplot(
+        ax=ax,
+        data=plot_data,
+        x="Overall Capture",
+        y="Hit Rate",
+        hue=plot_data.index,
+        style=plot_data.index,
+        markers=markers,
+        s=markersize,
+        zorder=5,
+        palette=colors,
+        edgecolors="black",
+        linewidth=0.5,
+    )
+
+    # 3. Reference lines: capture = 1.0 (neutral), hit rate = 50% (coin flip)
+    ax.axvline(1.0, color="black", linestyle="--", alpha=0.3, linewidth=0.5)
+    ax.axhline(0.5, color="black", linestyle="--", alpha=0.3, linewidth=0.5)
+
+    # 4. Styling
+    ax.set_title(title, fontsize=fontsize + 3, fontweight="bold", pad=8)
+    ax.set_xlabel("Overall Capture", fontsize=fontsize)
+    ax.set_ylabel("Hit Rate", fontsize=fontsize)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.grid(True, linestyle=":", alpha=0.6)
+    ax.tick_params(axis="both", labelsize=fontsize)
+    ax.legend(fontsize=fontsize, loc="best")
+
+    plt.tight_layout()
+
+    return fig, ax
