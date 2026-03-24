@@ -33,7 +33,7 @@ def beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.Series:
 
     bm_variance = benchmark.var(ddof=1)
 
-    if bm_variance == 0:
+    if bm_variance == 0 or np.isclose(bm_variance, 0, atol=1e-15):
         return pd.Series(np.nan, index=returns.columns)
 
     ret_centered = returns - returns.mean()
@@ -129,8 +129,11 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
     covariances = (returns_centered.mul(bench_centered, axis=0)).sum() / dof
     bench_variance = aligned_bench.var(ddof=1)
 
-    # Calculate Beta
-    betas = covariances / bench_variance
+    # Calculate Beta (guard against zero-variance benchmark)
+    if bench_variance == 0 or np.isclose(bench_variance, 0, atol=1e-15):
+        betas = pd.Series(np.nan, index=aligned_returns.columns)
+    else:
+        betas = covariances / bench_variance
 
     # Calculate Periodic Alpha, then Annualize it
     # Annualized Alpha = Periodic Alpha * Periods per Year

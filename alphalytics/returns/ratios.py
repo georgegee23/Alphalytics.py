@@ -4,7 +4,7 @@ import numpy as np
 from typing import Union
 
 from .risk import downside_variance, max_drawdown
-from .utils import _infer_periods_per_year
+from alphalytics.utils import _infer_periods_per_year
 
 
 # ============== RATIO STATISTICS ============== #
@@ -30,7 +30,12 @@ def sharpe_ratio(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
         periods_per_year = _infer_periods_per_year(returns.index)
 
     excess = returns - rfr
-    return (excess.mean() / excess.std()) * np.sqrt(periods_per_year)
+    std = excess.std()
+    if isinstance(std, pd.Series):
+        std = std.where(~np.isclose(std, 0, atol=1e-12), np.nan)
+    elif std == 0 or np.isclose(std, 0, atol=1e-12):
+        return np.nan
+    return (excess.mean() / std) * np.sqrt(periods_per_year)
 
 # ==========================================
 # SORTINO RATIO
@@ -63,8 +68,13 @@ def sortino_ratio(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
-    down_dev = np.sqrt(downside_variance(returns, mar=mar, ddof=ddof))
-    down_dev = down_dev.replace(0, np.nan)  # guard: strategy never fell below MAR
+    down_var = downside_variance(returns, mar=mar, ddof=ddof)
+    if isinstance(down_var, pd.Series):
+        down_dev = np.sqrt(down_var).replace(0, np.nan)
+    else:
+        down_dev = np.sqrt(down_var)
+        if down_dev == 0:
+            down_dev = np.nan
 
     mean_excess_return = returns.mean() - mar
 
@@ -96,9 +106,14 @@ def calmar_ratio(returns: Union[pd.Series, pd.DataFrame],
         periods_per_year = _infer_periods_per_year(returns.index)
 
     ann_ret = (1 + returns.mean()) ** periods_per_year - 1
-    mdd = max_drawdown(returns).abs()
+    mdd = np.abs(max_drawdown(returns))
 
-    return ann_ret / mdd.replace(0, np.nan)
+    if isinstance(mdd, pd.Series):
+        mdd = mdd.replace(0, np.nan)
+    elif mdd == 0:
+        return np.nan
+
+    return ann_ret / mdd
 
 # ==========================================
 # OMEGA RATIO
@@ -123,7 +138,7 @@ def omega_ratio(returns: Union[pd.Series, pd.DataFrame],
 
     excess = returns - mar
     gains = excess[excess > 0].sum()
-    losses = excess[excess < 0].sum().abs()
+    losses = np.abs(excess[excess < 0].sum())
 
     if isinstance(losses, pd.Series):
         return gains / losses.replace(0, np.nan)

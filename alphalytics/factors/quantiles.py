@@ -196,10 +196,12 @@ def fwd_quantile_stats(returns: pd.DataFrame, quantiles: pd.DataFrame, forward_p
         mean_fwd_rets = compute_mean_quantile_forward_return(returns, q_holdings, forward_periods=forward_periods)
 
         if not mean_fwd_rets.empty:
+            fwd_mean = mean_fwd_rets.mean().values[0]
             fwd_std = mean_fwd_rets.std().values[0]
-            quantile_fwd_rets_dict[f"Q{q}"] = [mean_fwd_rets.mean().values[0], (mean_fwd_rets.mean().values[0] / fwd_std)]
+            risk_adj = (fwd_mean / fwd_std) if fwd_std != 0 else np.nan
+            quantile_fwd_rets_dict[f"Q{q}"] = [fwd_mean, risk_adj]
         else:
-            quantile_fwd_rets_dict[f"Q{q}"] = np.nan
+            quantile_fwd_rets_dict[f"Q{q}"] = [np.nan, np.nan]
 
     fwd_quantile_df = pd.DataFrame.from_dict(quantile_fwd_rets_dict, orient="index", columns = ["Return", "Risk-Adjusted Return"])
     return fwd_quantile_df

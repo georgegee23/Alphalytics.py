@@ -80,7 +80,7 @@ def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Ser
     selected_quantile_shifted = (quantiles_shifted == target_quantile).loc[common_indices]
 
     unchanged = selected_quantile & selected_quantile_shifted
-    total_holdings = selected_quantile.sum(axis=1)
+    total_holdings = selected_quantile.sum(axis=1).replace(0, np.nan)
 
     return 1 - (unchanged.sum(axis=1) / total_holdings)
 

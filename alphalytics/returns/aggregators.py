@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 from .relative import (
-    batting_average, bull_batting_average, bear_batting_average,
+    hit_rate, bull_hit_rate, bear_hit_rate,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
     active_return, tracking_error, information_ratio,
 )
@@ -99,9 +99,9 @@ def evaluate_consistency(
         strat = strat_df[col]
 
         results[col] = {
-            "Batting Average (Overall)": batting_average(strat, benchmark_returns),
-            "Batting Average (Bull)": bull_batting_average(strat, benchmark_returns),
-            "Batting Average (Bear)": bear_batting_average(strat, benchmark_returns),
+            "Batting Average (Overall)": hit_rate(strat, benchmark_returns),
+            "Batting Average (Bull)": bull_hit_rate(strat, benchmark_returns),
+            "Batting Average (Bear)": bear_hit_rate(strat, benchmark_returns),
             "Win/Loss Ratio (Overall)": win_loss_ratio(strat, benchmark_returns),
             "Win/Loss Ratio (Bull)": bull_win_loss_ratio(strat, benchmark_returns),
             "Win/Loss Ratio (Bear)": bear_win_loss_ratio(strat, benchmark_returns),
