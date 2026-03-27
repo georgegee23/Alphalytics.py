@@ -40,7 +40,7 @@ from .factors import (
 # --- Plotting ---
 from .plotting import (
     plot_growth, plot_cumulative_performance, plot_risk_return,
-    plot_capture_ratios, plot_hit_rates,
+    plot_capture_ratios, plot_capture_hit_rate, plot_hit_rates,
     plot_area, plot_rolling_overunder, plot_xy_symmetric,
     plot_rolling_information_ratio,
     plot_factor_data, plot_quantiles_risk_metrics,
@@ -88,7 +88,7 @@ __all__ = [
     "compute_forward_returns",
     # plotting
     "plot_growth", "plot_cumulative_performance", "plot_risk_return",
-    "plot_capture_ratios", "plot_hit_rates",
+    "plot_capture_ratios", "plot_capture_hit_rate", "plot_hit_rates",
     "plot_area", "plot_rolling_overunder", "plot_xy_symmetric",
     "plot_factor_data", "plot_quantiles_risk_metrics",
     "plot_quantile_correlations", "plot_spearman_rank",

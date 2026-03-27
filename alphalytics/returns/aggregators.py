@@ -68,12 +68,8 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 # EVALUATE INVESTMENTS CONSISTENCY
 # ==========================================
 
-def evaluate_consistency(
-    strategy_returns: pd.DataFrame | pd.Series,
-    benchmark_returns: pd.Series,
-    periods_per_year: int = 12,
-    formatted: bool = False
-) -> pd.DataFrame:
+def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_returns: pd.Series,
+    periods_per_year: int = 12, formatted: bool = False) -> pd.DataFrame:
     """Evaluates the relative consistency and active risk of one or multiple strategies.
 
     Args:
@@ -99,16 +95,15 @@ def evaluate_consistency(
         strat = strat_df[col]
 
         results[col] = {
-            "Batting Average (Overall)": hit_rate(strat, benchmark_returns),
-            "Batting Average (Bull)": bull_hit_rate(strat, benchmark_returns),
-            "Batting Average (Bear)": bear_hit_rate(strat, benchmark_returns),
-            "Win/Loss Ratio (Overall)": win_loss_ratio(strat, benchmark_returns),
-            "Win/Loss Ratio (Bull)": bull_win_loss_ratio(strat, benchmark_returns),
-            "Win/Loss Ratio (Bear)": bear_win_loss_ratio(strat, benchmark_returns),
-            # Placed at the end per your request
-            "Active Return (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
-            "Tracking Error (Ann.)": tracking_error(strat, benchmark_returns, periods_per_year),
-            "Information Ratio": information_ratio(strat, benchmark_returns, periods_per_year)
+            "Hit Rate": hit_rate(strat, benchmark_returns),
+            "Bull Hit Rate": bull_hit_rate(strat, benchmark_returns),
+            "Bear Hit Rate": bear_hit_rate(strat, benchmark_returns),
+            "Win/Loss": win_loss_ratio(strat, benchmark_returns),
+            "Bull Win/Loss": bull_win_loss_ratio(strat, benchmark_returns),
+            "Bear Win/Loss": bear_win_loss_ratio(strat, benchmark_returns),
+            "Act. Ret. (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
+            "TE (Ann.)": tracking_error(strat, benchmark_returns, periods_per_year),
+            "Info Ratio": information_ratio(strat, benchmark_returns, periods_per_year)
         }
 
     # Convert dictionary to DataFrame and transpose (.T) so strategies are rows
@@ -117,15 +112,15 @@ def evaluate_consistency(
     # Apply string formatting for presentation if requested
     if formatted:
         format_rules = {
-            "Batting Average (Overall)": "{:.2%}",
-            "Batting Average (Bull)": "{:.2%}",
-            "Batting Average (Bear)": "{:.2%}",
-            "Win/Loss Ratio (Overall)": "{:.2f}x",
-            "Win/Loss Ratio (Bull)": "{:.2f}x",
-            "Win/Loss Ratio (Bear)": "{:.2f}x",
-            "Active Return (Ann.)": "{:.2%}",
-            "Tracking Error (Ann.)": "{:.2%}",
-            "Information Ratio": "{:.2f}"
+            "Hit Rate": "{:.2%}",
+            "Bull Hit Rate": "{:.2%}",
+            "Bear Hit Rate": "{:.2%}",
+            "Win/Loss": "{:.2f}",
+            "Bull Win/Loss": "{:.2f}",
+            "Bear Win/Loss": "{:.2f}",
+            "Act. Ret. (Ann.)": "{:.2%}",
+            "TE (Ann.)": "{:.2%}",
+            "Info Ratio": "{:.2f}"
         }
         for metric, fmt in format_rules.items():
             if metric in tearsheet.columns:

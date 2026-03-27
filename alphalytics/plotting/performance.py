@@ -196,7 +196,9 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
         markersize: The size of the scatter plot markers.
         colors: Color palette or list of colors. If None, Seaborn's default
             palette is used.
-        center: The anchor value where the X and Y crosshairs intersect.
+        center: The anchor value where the crosshairs intersect. Pass a
+            scalar to use the same center for both axes, or a tuple
+            ``(center_x, center_y)`` for independent axis centers.
         min_distance: Minimum enforced distance from center to axis limits.
 
     Returns:
@@ -204,6 +206,12 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     """
 
     fig, ax = plt.subplots(figsize=figsize)
+
+    # Support independent x/y centers
+    if isinstance(center, (tuple, list)):
+        center_x, center_y = center
+    else:
+        center_x = center_y = center
 
     # 1. Dynamically get column names by their integer index
     x_col = data.columns[0]
@@ -227,8 +235,8 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     )
 
     # Crosshairs & Styling
-    ax.axhline(center, color='black', linestyle='--', alpha=0.3)
-    ax.axvline(center, color='black', linestyle='--', alpha=0.3)
+    ax.axhline(center_y, color='black', linestyle='--', alpha=0.3)
+    ax.axvline(center_x, color='black', linestyle='--', alpha=0.3)
 
     ax.set_title(title, fontsize=fontsize+3, fontweight='bold', pad=8)
     ax.set_xlabel(x_col, fontsize=fontsize)
@@ -236,17 +244,17 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.tick_params(axis='both', labelsize=fontsize)
 
-    # Find the absolute max distance from center for both X and Y
-    max_dev_x = (data[x_col] - center).abs().max()
-    max_dev_y = (data[y_col] - center).abs().max()
+    # Find the absolute max distance from center for each axis
+    max_dev_x = (data[x_col] - center_x).abs().max()
+    max_dev_y = (data[y_col] - center_y).abs().max()
 
-    # Get the largest deviation, add 20% padding, and enforce minimum distance
-    max_dist = max(max_dev_x, max_dev_y) * 1.2
-    max_dist = max(max_dist, min_distance)
+    # Add 20% padding and enforce minimum distance per axis
+    dist_x = max(max_dev_x * 1.2, min_distance)
+    dist_y = max(max_dev_y * 1.2, min_distance)
 
-    # Apply the limits symmetrically
-    ax.set_xlim(center - max_dist, center + max_dist)
-    ax.set_ylim(center - max_dist, center + max_dist)
+    # Apply the limits symmetrically around each center
+    ax.set_xlim(center_x - dist_x, center_x + dist_x)
+    ax.set_ylim(center_y - dist_y, center_y + dist_y)
 
     # Move legend to a consistent spot
     ax.legend(fontsize=fontsize, loc='upper left')
@@ -304,18 +312,16 @@ def plot_capture_ratios(strategy_returns: pd.DataFrame, benchmark_returns: pd.Se
     return fig, ax
 
 
-def plot_hit_rates(strategy_returns: pd.Series, benchmark_returns: pd.Series,
-                          figsize=(3, 3),
-                          colors=None,
-                          title='Batting Average',
-                          font_size=7):
+def plot_hit_rates(strategy_returns, benchmark_returns,
+                   figsize=(3, 3),
+                   title='Hit Rate',
+                   font_size=7):
     """
     Calculates and plots the Batting Average (Win Rate) for Overall, Up, and Down markets.
 
     Parameters:
     - strategy_returns, benchmark_returns: pd.Series of periodic returns.
     - figsize: Tuple (width, height).
-    - colors: List of colors for the bars.
     - title: Chart title.
     - font_size: Base font size for labels.
 
@@ -324,30 +330,19 @@ def plot_hit_rates(strategy_returns: pd.Series, benchmark_returns: pd.Series,
     """
 
     # --- 1. Calculation Logic ---
-    # Align data
     data = pd.concat([strategy_returns, benchmark_returns], axis=1).dropna()
     strat = data.iloc[:, 0]
     bench = data.iloc[:, 1]
 
     # Calculate Win Rates
-    # Overall: % of periods where Strat > Bench
     overall_win = (strat > bench).mean()
 
-    # Up Market: % of periods where Strat > Bench (given Bench > 0)
     up_market_mask = bench > 0
-    if up_market_mask.sum() > 0:
-        up_win = (strat[up_market_mask] > bench[up_market_mask]).mean()
-    else:
-        up_win = 0.0
+    up_win = (strat[up_market_mask] > bench[up_market_mask]).mean() if up_market_mask.sum() > 0 else 0.0
 
-    # Down Market: % of periods where Strat > Bench (given Bench < 0)
     down_market_mask = bench < 0
-    if down_market_mask.sum() > 0:
-        down_win = (strat[down_market_mask] > bench[down_market_mask]).mean()
-    else:
-        down_win = 0.0
+    down_win = (strat[down_market_mask] > bench[down_market_mask]).mean() if down_market_mask.sum() > 0 else 0.0
 
-    # Create the Results Series
     results = pd.Series(
         [overall_win, up_win, down_win],
         index=["Overall", "Up Market", "Down Market"]
@@ -356,29 +351,25 @@ def plot_hit_rates(strategy_returns: pd.Series, benchmark_returns: pd.Series,
     # --- 2. Setup the Plot ---
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Use the provided colors, repeating if necessary
-    if len(colors) < len(results):
-        colors = colors * len(results)
+    # Dynamically pull the active matplotlib color cycle
+    mpl_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-    bars = ax.bar(results.index, results.values, color=colors[:len(results)], alpha=0.8, width=0.6)
+    # Slice the color cycle to match the number of bars
+    bars = ax.bar(results.index, results.values, color=mpl_colors[:len(results)], alpha=0.8, width=0.6)
 
     # --- 3. Styling ---
     ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
-    ax.set_ylim(0, 1.15) # Give headroom for labels
+    ax.set_ylim(0, 1.15) 
     ax.set_ylabel('Win Rate', fontsize=font_size)
 
-    # Format Y-axis as percentage
     ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
 
-    # Remove top and right spines
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    # Adjust Font Sizes
     ax.tick_params(axis='x', labelsize=font_size)
     ax.tick_params(axis='y', labelsize=font_size)
 
-    # Add Labels on Top of Bars
     for bar in bars:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + 0.02,
@@ -833,84 +824,55 @@ def plot_compare_drawdown_volatility(drawdown_dict: dict, figsize: tuple = None,
     return fig, axes
 
 
-def plot_capture_hit_rate(
-    strategy_returns: pd.DataFrame,
-    benchmark_returns: pd.Series,
-    figsize: tuple = (5, 5),
-    fontsize: int = 8,
-    colors=None,
-    markers=None,
-    markersize: int = 120,
-    title: str = "Overall Capture vs Hit Rate",
-) -> tuple:
-    """Scatter plot of Overall Capture (x) vs Hit Rate (y) per strategy.
+def plot_capture_hit_rate(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series,
+                         figsize=(3, 3), colors=None, title='Overall Capture vs Hit Rate',
+                         fontsize=7, markers=['o']):
+    """High-level wrapper that calculates and plots Overall Capture vs Hit Rate.
 
-    Combines capture ratio analysis with batting average to show which
-    strategies have both favorable asymmetric capture and consistent
-    outperformance in a single view.
+    Bridges ``capture_ratios()``, ``hit_rate()``, and ``plot_xy_symmetric()``
+    to generate a complete scatter plot directly from raw periodic returns.
 
     Args:
-        strategy_returns: Periodic returns of the strategies (one column
-            per strategy).
-        benchmark_returns: Periodic returns of the benchmark.
-        figsize: Figure dimensions (width, height) in inches.
-        fontsize: Base font size for labels, ticks, and legend.
-        colors: Color palette or list of colors. If None, Seaborn's
-            default palette is used.
-        markers: Marker style(s). A single string applies to all points;
-            a dict maps strategy names to marker shapes.
-        markersize: Size of scatter markers.
-        title: Plot title.
+        strategy_returns: Periodic returns of the strategies. Each column
+            should represent a distinct strategy or asset.
+        benchmark_returns: Periodic returns of the benchmark to calculate
+            the capture and hit rate against.
+        figsize: The dimensions (width, height) of the figure in inches.
+        colors: Color palette or list of colors. If None, Seaborn's default
+            palette is used.
+        title: The title displayed at the top of the plot.
+        fontsize: Base font size for title, axis labels, ticks, and legend.
+        markers: Marker style for scatter points. Pass a single string for
+            uniform shapes, or a dict mapping index names to shapes.
 
     Returns:
-        The matplotlib Figure and Axes objects.
+        The generated matplotlib Figure and Axes objects.
+
+    Example:
+        >>> fig, ax = plot_capture_hit_rate(
+        ...     strategy_returns=my_funds_df,
+        ...     benchmark_returns=sp500_series,
+        ...     title="Capture vs Batting Average"
+        ... )
     """
-    # 1. Compute metrics
+
+    # Compute metrics
     captures = capture_ratios(strategy_returns, benchmark_returns)
     hit_rates = hit_rate(strategy_returns, benchmark_returns)
 
+    # Build the two-column DataFrame expected by plot_xy_symmetric
     plot_data = pd.DataFrame({
         "Overall Capture": captures["Overall Capture"],
         "Hit Rate": hit_rates,
     })
-    plot_data = plot_data.dropna()
 
-    # 2. Build scatter
-    fig, ax = plt.subplots(figsize=figsize)
-
-    if markers is None:
-        markers = "o"
-    if isinstance(markers, str):
-        markers = {name: markers for name in plot_data.index}
-
-    sns.scatterplot(
-        ax=ax,
-        data=plot_data,
-        x="Overall Capture",
-        y="Hit Rate",
-        hue=plot_data.index,
-        style=plot_data.index,
-        markers=markers,
-        s=markersize,
-        zorder=5,
-        palette=colors,
-        edgecolors="black",
-        linewidth=0.5,
-    )
-
-    # 3. Reference lines: capture = 1.0 (neutral), hit rate = 50% (coin flip)
-    ax.axvline(1.0, color="black", linestyle="--", alpha=0.3, linewidth=0.5)
-    ax.axhline(0.5, color="black", linestyle="--", alpha=0.3, linewidth=0.5)
-
-    # 4. Styling
-    ax.set_title(title, fontsize=fontsize + 3, fontweight="bold", pad=8)
-    ax.set_xlabel("Overall Capture", fontsize=fontsize)
-    ax.set_ylabel("Hit Rate", fontsize=fontsize)
-    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
-    ax.grid(True, linestyle=":", alpha=0.6)
-    ax.tick_params(axis="both", labelsize=fontsize)
-    ax.legend(fontsize=fontsize, loc="best")
-
-    plt.tight_layout()
+    # Plot via plot_xy_symmetric (x centered at 1.0, y centered at 0.5)
+    fig, ax = plot_xy_symmetric(data=plot_data,
+                                figsize=figsize,
+                                title=title,
+                                fontsize=fontsize,
+                                colors=colors,
+                                markers=markers,
+                                center=(1, 0.5))
 
     return fig, ax

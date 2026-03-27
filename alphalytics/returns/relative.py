@@ -414,19 +414,16 @@ def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Da
     # (These functions already handle the date alignment and dropna internally!)
     up = up_capture(returns, benchmark_returns)
     down = down_capture(returns, benchmark_returns)
-
+    capture = up/down
+    spread = up - down
+    
     # 2. Combine into a clean summary DataFrame
     summary_df = pd.DataFrame({
         "Up Capture": up,
-        "Down Capture": down
+        "Down Capture": down,
+        "Overall Capture":capture,
+        "Spread": spread
     })
 
-    # 3. Add Capture Spread (Up Capture - Down Capture)
-    # A positive spread indicates the manager adds value across full market cycles.
-    summary_df["Capture Spread"] = summary_df["Up Capture"] - summary_df["Down Capture"]
-
-    # 4. Add Overall Capture Ratio (Up Capture / Down Capture)
-    # A ratio > 1.0 generally implies a favorable asymmetric return profile.
-    summary_df["Overall Capture"] = summary_df["Up Capture"] / summary_df["Down Capture"]
 
     return summary_df
