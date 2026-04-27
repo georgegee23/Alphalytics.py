@@ -8,8 +8,8 @@ from alphalytics.returns.ratios import (
     sharpe_ratio,
     sortino_ratio,
     calmar_ratio,
-    omega_ratio,
 )
+from alphalytics.returns.relative import omega_ratio
 
 
 class TestSharpeRatio:

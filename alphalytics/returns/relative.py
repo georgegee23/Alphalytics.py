@@ -53,184 +53,6 @@ def bear_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
 
     return float((bear_excess > 0).mean())
 
-# ==========================================
-# WIN/LOSS RATIOS (Payoff Ratios)
-# ==========================================
-
-def win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
-
-    """Overall ratio of average outperformance to absolute average underperformance."""
-
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: win_loss_ratio(col, benchmark_returns))
-
-    excess = (strategy_returns - benchmark_returns).dropna()
-    wins, losses = excess[excess > 0], excess[excess < 0]
-
-    avg_win = wins.mean() if not wins.empty else 0.0
-    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
-
-    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
-    return float(avg_win / avg_loss)
-
-def bull_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
-
-    """Win/loss ratio only during benchmark up-markets."""
-
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: bull_win_loss_ratio(col, benchmark_returns))
-
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bull_excess = strat[bench > 0] - bench[bench > 0]
-
-    wins, losses = bull_excess[bull_excess > 0], bull_excess[bull_excess < 0]
-
-    avg_win = wins.mean() if not wins.empty else 0.0
-    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
-
-    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
-    return float(avg_win / avg_loss)
-
-def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
-
-    """Win/loss ratio only during benchmark down-markets."""
-
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: bear_win_loss_ratio(col, benchmark_returns))
-
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bear_excess = strat[bench < 0] - bench[bench < 0]
-
-    wins, losses = bear_excess[bear_excess > 0], bear_excess[bear_excess < 0]
-
-    avg_win = wins.mean() if not wins.empty else 0.0
-    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
-
-    if avg_loss == 0: return np.inf if avg_win > 0 else 0.0
-    return float(avg_win / avg_loss)
-
-# ==========================================
-# ACTIVE RETURN
-# ==========================================
-
-def active_return(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
-    periods_per_year: int = 12) -> Union[float, pd.Series]:
-    """
-    Computes the annualized arithmetic mean of excess returns.
-    """
-    # Handle DataFrame recursion
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: active_return(col, benchmark_returns, periods_per_year))
-
-    # Align data to avoid mismatched date errors
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    excess = (strat - bench).dropna()
-
-    if excess.empty:
-        return np.nan
-
-    # Annualize the mean excess return
-    return float(excess.mean() * periods_per_year)
-
-
-# ==========================================
-# TRACKING ERROR (Active Risk)
-# ==========================================
-
-def tracking_error(
-    strategy_returns: Union[pd.Series, pd.DataFrame],
-    benchmark_returns: pd.Series,
-    periods_per_year: int = 12
-) -> Union[float, pd.Series]:
-    """
-    Computes the annualized standard deviation of excess returns.
-    """
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: tracking_error(col, benchmark_returns, periods_per_year))
-
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    excess = (strat - bench).dropna()
-
-    # Require at least 2 data points for standard deviation
-    if len(excess) < 2:
-        return np.nan
-
-    # Calculate sample standard deviation (ddof=1) and annualize it
-    return float(excess.std(ddof=1) * np.sqrt(periods_per_year))
-
-
-# ==========================================
-# INFORMATION RATIO
-# ==========================================
-
-def information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
-    periods_per_year: int = 12) -> Union[float, pd.Series]:
-    """
-    Computes the annualized Information Ratio (Active Return / Tracking Error).
-    """
-    if isinstance(strategy_returns, pd.DataFrame):
-        return strategy_returns.apply(lambda col: information_ratio(col, benchmark_returns, periods_per_year))
-
-    # We can just call our other two functions directly
-    ann_active_return = active_return(strategy_returns, benchmark_returns, periods_per_year)
-    ann_tracking_error = tracking_error(strategy_returns, benchmark_returns, periods_per_year)
-
-    # Catch division by zero if the strategy perfectly mimics the benchmark
-    if pd.isna(ann_tracking_error) or ann_tracking_error == 0:
-        return np.nan
-
-    return float(ann_active_return / ann_tracking_error)
-
-# ==========================================
-# ROLLING INFORMATION RATIO
-# ==========================================
-
-def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
-    window: int, periods_per_year: int = None) -> pd.DataFrame:
-    """Compute rolling annualized information ratio for one or more strategies.
-
-    The information ratio is defined as the annualized mean excess return
-    divided by the annualized tracking error over a rolling window.
-
-    Args:
-        strategy_returns: Periodic returns in decimal form. Series name or
-            DataFrame column names are used as output labels.
-        benchmark_returns: Periodic returns for the benchmark in decimal form.
-        window: Rolling window size in periods.
-        periods_per_year: Annualization factor. If None, inferred from
-            the index frequency (252 daily, 52 weekly, 12 monthly,
-            4 quarterly).
-
-    Returns:
-        DataFrame of rolling information ratios with one column per strategy.
-    """
-    # Standardize input
-    if isinstance(strategy_returns, pd.Series):
-        strategy_name = strategy_returns.name or "Strategy"
-        strat_df = strategy_returns.to_frame(name=strategy_name)
-    else:
-        strat_df = strategy_returns.copy()
-
-    # Align on common index
-    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
-
-    # Infer annualization factor if not provided
-    if periods_per_year is None:
-        periods_per_year = _infer_periods_per_year(strat_df.index)
-
-    # Rolling IR calculation
-    excess_returns = strat_df.sub(bench, axis=0).dropna()
-    rolling_mean = excess_returns.rolling(window=window).mean()
-    rolling_std = excess_returns.rolling(window=window).std(ddof=1)
-
-    rolling_ir = (rolling_mean / rolling_std) * np.sqrt(periods_per_year)
-    rolling_ir = rolling_ir.replace([np.inf, -np.inf], np.nan).dropna(how="all")
-
-    return rolling_ir
-
 
 # ==========================================
 # HIT RATES (Vectorized)
@@ -307,96 +129,662 @@ def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
 
     return hitrate_df
 
+# ==========================================
+# ROLLING HIT RATE
+# ==========================================
+
+def rolling_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+                            window: int) -> Union[pd.Series, pd.DataFrame]:
+    """Rolling Hit Rate / Batting Average (proportion of periods with positive excess returns).
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling batting averages.
+    """
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    # Calculate period-by-period arithmetic excess return
+    excess = strat_df.sub(bench, axis=0).dropna()
+
+    # Create boolean mask of positive excess returns (True=1, False=0)
+    hits = (excess > 0).astype(int)
+
+    # Rolling mean of a binary mask yields the proportion of 1s (the hit rate)
+    result = hits.rolling(window=window).mean().dropna(how="all")
+
+    if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
+        return result.iloc[:, 0]
+    return result
+
+
+# ==========================================
+# WIN/LOSS RATIOS (Payoff Ratios)
+# ==========================================
+
+def win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Overall ratio of average outperformance to absolute average underperformance."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: win_loss_ratio(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    excess = (strat - bench).dropna()
+    if excess.empty: return np.nan
+
+    wins, losses = excess[excess > 0], excess[excess < 0]
+    if wins.empty and losses.empty: return np.nan
+
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+
+    if avg_loss == 0: return np.inf
+    return float(avg_win / avg_loss)
+
+def bull_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Win/loss ratio only during benchmark up-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bull_win_loss_ratio(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bull_excess = (strat[bench > 0] - bench[bench > 0]).dropna()
+    if bull_excess.empty: return np.nan
+
+    wins, losses = bull_excess[bull_excess > 0], bull_excess[bull_excess < 0]
+    if wins.empty and losses.empty: return np.nan
+
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+
+    if avg_loss == 0: return np.inf
+    return float(avg_win / avg_loss)
+
+def bear_win_loss_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+
+    """Win/loss ratio only during benchmark down-markets."""
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: bear_win_loss_ratio(col, benchmark_returns))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    bear_excess = (strat[bench < 0] - bench[bench < 0]).dropna()
+    if bear_excess.empty: return np.nan
+
+    wins, losses = bear_excess[bear_excess > 0], bear_excess[bear_excess < 0]
+    if wins.empty and losses.empty: return np.nan
+
+    avg_win = wins.mean() if not wins.empty else 0.0
+    avg_loss = abs(losses.mean()) if not losses.empty else 0.0
+
+    if avg_loss == 0: return np.inf
+    return float(avg_win / avg_loss)
+
+
+# ==========================================
+# TAIL CAPTURE RATIO
+# ==========================================
+
+def tail_capture_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series, upper: float = 0.9, lower: float = 0.1) -> Union[float, pd.Series]:
+    """
+    Tail Capture Ratio.
+
+    Ratio of upper-tail capture to lower-tail capture, where each capture is
+    the strategy's conditional mean divided by the benchmark's conditional
+    mean in the same benchmark-tail regime:
+
+        Tail Up Capture   = E[R_strat | R_bench >= q_upper]
+                            / E[R_bench | R_bench >= q_upper]
+        Tail Down Capture = E[R_strat | R_bench <= q_lower]
+                            / E[R_bench | R_bench <= q_lower]
+        Tail Capture      = Tail Up Capture / Tail Down Capture
+
+    Values above 1 indicate favorable tail asymmetry: the strategy captures
+    more of the benchmark's upper tail than its lower tail. The benchmark
+    evaluated against itself returns 1.0 by construction.
+
+    Args:
+        strategy_returns: A pandas Series or DataFrame of periodic returns.
+        benchmark_returns: A pandas Series of benchmark periodic returns.
+        upper: Upper quantile threshold on the benchmark. Defaults to 0.9.
+        lower: Lower quantile threshold on the benchmark. Defaults to 0.1.
+
+    Returns:
+        A float (Series input) or pd.Series (DataFrame input).
+        NaN when either tail is empty, the benchmark's lower-tail mean is zero,
+        or the lower-tail capture is zero.
+    """
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(
+            lambda col: tail_capture_ratio(col, benchmark_returns, upper, lower)
+        )
+
+    df = pd.concat([strategy_returns, benchmark_returns], axis=1, join='inner').dropna()
+    if df.empty: return np.nan
+    strat, bench = df.iloc[:, 0], df.iloc[:, 1]
+
+    q_up = bench.quantile(upper)
+    q_lo = bench.quantile(lower)
+
+    up_mask = bench >= q_up
+    lo_mask = bench <= q_lo
+
+    if not up_mask.any() or not lo_mask.any(): return np.nan
+
+    bench_up_mean = bench[up_mask].mean()
+    bench_lo_mean = bench[lo_mask].mean()
+
+    if bench_up_mean == 0 or bench_lo_mean == 0: return np.nan
+
+    up_capture = strat[up_mask].mean() / bench_up_mean
+    lo_capture = strat[lo_mask].mean() / bench_lo_mean
+
+    if lo_capture == 0: return np.nan
+    return float(up_capture / lo_capture)
+
+# ==========================================
+# OMEGA RATIO
+# ==========================================
+
+def omega_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    mar: Union[float, pd.Series] = 0.0) -> Union[float, pd.Series]:
+
+    """Ratio of cumulative excess gains to cumulative excess losses over MAR.
+
+    MAR (Minimum Acceptable Return) may be a scalar per-period threshold
+    (default 0.0) or a pd.Series benchmark for a relative Omega.
+    Returns NaN when there are no losses.
+    """
+
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: omega_ratio(col, mar))
+
+    if isinstance(mar, pd.Series):
+        strategy_returns, mar = strategy_returns.align(mar, join='inner')
+
+    excess = (strategy_returns - mar).dropna()
+    if excess.empty: return np.nan
+
+    gains = excess[excess > 0].sum()
+    losses = abs(excess[excess < 0].sum())
+
+    if losses == 0: return np.nan
+    return float(gains / losses)
+
+
+# ==========================================
+# ROLLING OMEGA RATIO
+# ==========================================
+
+def rolling_omega_ratio(strategy_returns: Union[pd.Series, pd.DataFrame],
+    mar: Union[float, pd.Series] = 0.0, window: int = 36) -> Union[pd.Series, pd.DataFrame]:
+    """Rolling Omega Ratio over a trailing window.
+
+    For each window, delegates to `omega_ratio` so the math stays in one place.
+    MAR (Minimum Acceptable Return) may be a scalar per-period threshold
+    (default 0.0) or a pd.Series benchmark for a relative Omega.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        mar: Scalar threshold or pd.Series benchmark.
+        window: Rolling window size in periods.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling Omega ratios. NaN in windows with
+        no losses or no data.
+    """
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    if isinstance(mar, pd.Series):
+        strat_df, mar_aligned = strat_df.align(mar, join="inner", axis=0)
+    else:
+        mar_aligned = mar
+
+    if len(strat_df) < window:
+        empty = pd.DataFrame(columns=strat_df.columns)
+        return empty.iloc[:, 0] if isinstance(strategy_returns, pd.Series) else empty
+
+    def _slice_mar(i: int):
+        if isinstance(mar_aligned, pd.Series):
+            return mar_aligned.iloc[i - window + 1 : i + 1]
+        return mar_aligned
+
+    records = {
+        strat_df.index[i]: omega_ratio(strat_df.iloc[i - window + 1 : i + 1], _slice_mar(i))
+        for i in range(window - 1, len(strat_df))
+    }
+
+    result = pd.DataFrame(records).T.dropna(how="all")
+
+    if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
+        return result.iloc[:, 0]
+    return result
+
+
+# ==========================================
+# ACTIVE RETURN
+# ==========================================
+
+def active_return(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    periods_per_year: int = None) -> Union[float, pd.Series]:
+    """
+    Computes the annualized arithmetic mean of excess returns.
+    """
+    # Handle DataFrame recursion
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: active_return(col, benchmark_returns, periods_per_year))
+
+    # Align data to avoid mismatched date errors
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    excess = (strat - bench).dropna()
+
+    if excess.empty:
+        return np.nan
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(excess.index)
+
+    # Annualize the mean excess return
+    return float(excess.mean() * periods_per_year)
+
+
+# ==========================================
+# TRACKING ERROR (Active Risk)
+# ==========================================
+
+def active_risk(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series, periods_per_year: int = None) -> Union[float, pd.Series]:
+    """
+    Computes the annualized standard deviation of excess returns.
+    """
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: active_risk(col, benchmark_returns, periods_per_year))
+
+    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
+    excess = (strat - bench).dropna()
+
+    # Require at least 2 data points for standard deviation
+    if len(excess) < 2:
+        return np.nan
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(excess.index)
+
+    # Calculate sample standard deviation (ddof=1) and annualize it
+    return float(excess.std(ddof=1) * np.sqrt(periods_per_year))
+
+
+# ==========================================
+# INFORMATION RATIO
+# ==========================================
+
+def information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    periods_per_year: int = None) -> Union[float, pd.Series]:
+    """
+    Computes the annualized Information Ratio (Active Return / Tracking Error).
+    """
+    if isinstance(strategy_returns, pd.DataFrame):
+        return strategy_returns.apply(lambda col: information_ratio(col, benchmark_returns, periods_per_year))
+
+    # We can just call our other two functions directly
+    ann_active_return = active_return(strategy_returns, benchmark_returns, periods_per_year)
+    ann_active_risk = active_risk(strategy_returns, benchmark_returns, periods_per_year)
+
+    # Catch division by zero if the strategy perfectly mimics the benchmark
+    if pd.isna(ann_active_risk) or ann_active_risk == 0:
+        return np.nan
+
+    return float(ann_active_return / ann_active_risk)
+
+# ==========================================
+# ROLLING ACTIVE RETURN
+# ==========================================
+
+def rolling_active_return(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None, method: str = "arithmetic") -> Union[pd.Series, pd.DataFrame]:
+    """Rolling annualized active return (strategy minus benchmark).
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from the index.
+        method: 'arithmetic' — rolling mean of excess returns, annualized.
+                'geometric' — annualized compound return of each series, then differenced.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling annualized active returns.
+    """
+    # Standardize input
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    # Align on common index
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    # Infer annualization factor if not provided
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(strat_df.index)
+
+    if method == "arithmetic":
+        excess = strat_df.sub(bench, axis=0).dropna()
+        result = excess.rolling(window=window).mean() * periods_per_year
+    elif method == "geometric":
+        ann_factor = periods_per_year / window
+        rol_strat = np.exp(np.log1p(strat_df).rolling(window).sum()) ** ann_factor - 1
+        rol_bench = np.exp(np.log1p(bench).rolling(window).sum()) ** ann_factor - 1
+        result = rol_strat.sub(rol_bench, axis=0)
+    else:
+        raise ValueError(f"method must be 'arithmetic' or 'geometric', got '{method}'")
+
+    result = result.dropna(how="all")
+
+    # Return Series if single-column input
+    if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
+        return result.iloc[:, 0]
+    return result
+
+
+
+# ==========================================
+# ROLLING TRACKING ERROR (Active Risk)
+# ==========================================
+
+def rolling_active_risk(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None, method: str = "arithmetic") -> Union[pd.Series, pd.DataFrame]:
+    """Rolling annualized tracking error (std of active returns).
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from the index.
+        method: 'arithmetic' — rolling std of arithmetic excess returns, annualized by sqrt rule.
+                'geometric' — rolling std of per-period geometric excess returns, annualized by sqrt rule.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling annualized tracking error.
+    """
+    # Standardize input
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(strat_df.index)
+
+    if method == "arithmetic":
+        excess = strat_df.sub(bench, axis=0)
+        result = excess.rolling(window=window).std(ddof=1) * np.sqrt(periods_per_year)
+    elif method == "geometric":
+        # Per-period geometric excess return: (1+r_strat)/(1+r_bench) - 1
+        geo_excess = (1 + strat_df).div(1 + bench, axis=0) - 1
+        result = geo_excess.rolling(window=window).std(ddof=1) * np.sqrt(periods_per_year)
+    else:
+        raise ValueError(f"method must be 'arithmetic' or 'geometric', got '{method}'")
+
+    result = result.dropna(how="all")
+
+    if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
+        return result.iloc[:, 0]
+    return result
+
+
+# ==========================================
+# ROLLING INFORMATION RATIO
+# ==========================================
+
+def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, periods_per_year: int = None) -> pd.DataFrame:
+    """Compute rolling annualized information ratio for one or more strategies.
+
+    The information ratio is defined as the annualized mean excess return
+    divided by the annualized tracking error over a rolling window.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form. Series name or
+            DataFrame column names are used as output labels.
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+        periods_per_year: Annualization factor. If None, inferred from
+            the index frequency (252 daily, 52 weekly, 12 monthly,
+            4 quarterly).
+
+    Returns:
+        DataFrame of rolling information ratios with one column per strategy.
+    """
+    rol_ar = rolling_active_return(strategy_returns, benchmark_returns,
+        window, periods_per_year, method="arithmetic")
+    rol_te = rolling_active_risk(strategy_returns, benchmark_returns,
+        window, periods_per_year, method="arithmetic")
+
+    # Ensure DataFrame for consistent division
+    if isinstance(rol_ar, pd.Series):
+        rol_ar = rol_ar.to_frame()
+        rol_te = rol_te.to_frame()
+
+    rolling_ir = (rol_ar / rol_te).replace([np.inf, -np.inf], np.nan).dropna(how="all")
+
+    return rolling_ir
 
 # ==========================================
 # CAPTURE RATIOS
 # ==========================================
 
-def down_capture(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
+def down_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series) -> Union[float, pd.Series]:
     """
     Calculates the Down Capture Ratio using the Geometric Mean method.
 
     Args:
-        returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
+        returns: Periodic returns (e.g., monthly) of the strategies (Series or DataFrame).
         benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
 
     Returns:
-        pd.Series: The ratios (e.g., 0.95 = 95%) for each strategy. Returns np.nan if no down markets occur.
+        float or pd.Series: The ratios (e.g., 0.95 = 95%). Returns np.nan if no down markets occur.
     """
-    # 1. Align data (intersection of dates) and drop missing values
-    #    This ensures we only compare periods where both have data.
+    scalar_input = isinstance(returns, pd.Series)
+    if scalar_input:
+        returns = returns.to_frame(name=returns.name or "Strategy")
+
     df = returns.copy()
     df['bench'] = benchmark_returns
     df = df.dropna()
 
-    # 2. Filter for periods where Benchmark was strictly DOWN (< 0)
-    #    Standard practice is < 0, but some use <= 0.
     down_market = df[df['bench'] < 0]
-
-    # 3. Handle edge case: No down markets
-    if len(down_market) == 0:
-        return pd.Series(np.nan, index=returns.columns)
-
     n = len(down_market)
 
-    # 4. Calculate Geometric Mean (Compound Annual Growth Rate style) for down periods
-    #    Formula: (Product(1 + r)) ^ (1/n) - 1
-    #    Note: axis=0 ensures we calculate the product down each column simultaneously.
+    if n == 0:
+        result = pd.Series(np.nan, index=returns.columns)
+        return float(result.iloc[0]) if scalar_input else result
 
-    port_geo_avg = (np.prod(1 + down_market[returns.columns], axis=0)) ** (1 / n) - 1
-    bench_geo_avg = (np.prod(1 + down_market['bench'])) ** (1 / n) - 1
+    # Geometric mean per-period return via log-returns: exp(mean(log(1+r))) - 1
+    port_geo_avg = np.exp(np.log1p(down_market[returns.columns]).sum(axis=0) / n) - 1
+    bench_geo_avg = np.exp(np.log1p(down_market['bench']).sum() / n) - 1
 
-    # 5. Calculate Ratio
-    #    Safety check: Ensure benchmark average is not 0 (unlikely given filter < 0)
     if bench_geo_avg == 0:
-        return pd.Series(np.nan, index=returns.columns)
+        result = pd.Series(np.nan, index=returns.columns)
+        return float(result.iloc[0]) if scalar_input else result
 
     ratio = port_geo_avg / bench_geo_avg
 
-    return ratio
+    return float(ratio.iloc[0]) if scalar_input else ratio
 
-def up_capture(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Series:
+def up_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series) -> Union[float, pd.Series]:
     """
     Calculates the Up Capture Ratio using the Geometric Mean method.
 
     Args:
-        returns (pd.DataFrame): Periodic returns (e.g., monthly) of the strategies.
+        returns: Periodic returns (e.g., monthly) of the strategies (Series or DataFrame).
         benchmark_returns (pd.Series): Periodic returns (e.g., monthly) of the benchmark.
 
     Returns:
-        pd.Series: The ratios (e.g., 1.05 = 105%) for each strategy. Returns np.nan if no up markets occur.
+        float or pd.Series: The ratios (e.g., 1.05 = 105%). Returns np.nan if no up markets occur.
     """
-    # 1. Align data (intersection of dates) and drop missing values
-    #    This ensures we only compare periods where both have data.
+    scalar_input = isinstance(returns, pd.Series)
+    if scalar_input:
+        returns = returns.to_frame(name=returns.name or "Strategy")
+
     df = returns.copy()
     df['bench'] = benchmark_returns
     df = df.dropna()
 
-    # 2. Filter for periods where Benchmark was strictly UP (> 0)
-    #    Standard practice is > 0, but some use >= 0.
     up_market = df[df['bench'] > 0]
-
-    # 3. Handle edge case: No up markets
-    if len(up_market) == 0:
-        return pd.Series(np.nan, index=returns.columns)
-
     n = len(up_market)
 
-    # 4. Calculate Geometric Mean (Compound Annual Growth Rate style) for up periods
-    #    Formula: (Product(1 + r)) ^ (1/n) - 1
-    #    Note: axis=0 ensures we calculate the product up each column simultaneously.
+    if n == 0:
+        result = pd.Series(np.nan, index=returns.columns)
+        return float(result.iloc[0]) if scalar_input else result
 
-    port_geo_avg = (np.prod(1 + up_market[returns.columns], axis=0)) ** (1 / n) - 1
-    bench_geo_avg = (np.prod(1 + up_market['bench'])) ** (1 / n) - 1
+    # Geometric mean per-period return via log-returns: exp(mean(log(1+r))) - 1
+    port_geo_avg = np.exp(np.log1p(up_market[returns.columns]).sum(axis=0) / n) - 1
+    bench_geo_avg = np.exp(np.log1p(up_market['bench']).sum() / n) - 1
 
-    # 5. Calculate Ratio
-    #    Safety check: Ensure benchmark average is not 0 (unlikely given filter > 0)
     if bench_geo_avg == 0:
-        return pd.Series(np.nan, index=returns.columns)
+        result = pd.Series(np.nan, index=returns.columns)
+        return float(result.iloc[0]) if scalar_input else result
 
     ratio = port_geo_avg / bench_geo_avg
 
-    return ratio
+    return float(ratio.iloc[0]) if scalar_input else ratio
+
+def capture_spread(returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+    """
+    Calculates the Capture Spread: Up Capture − Down Capture.
+
+    A positive spread indicates asymmetric upside participation (captures
+    more of rallies than drawdowns); a negative spread indicates the
+    reverse. NaN propagates if either side is undefined.
+
+    Args:
+        returns: Periodic returns of the strategies (Series or DataFrame).
+        benchmark_returns (pd.Series): Periodic returns of the benchmark.
+
+    Returns:
+        float or pd.Series: Up Capture minus Down Capture.
+    """
+    return up_capture(returns, benchmark_returns) - down_capture(returns, benchmark_returns)
+
+
+# ==========================================
+# ROLLING CAPTURE RATIOS
+# ==========================================
+
+def _rolling_capture(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int, static_fn) -> Union[pd.Series, pd.DataFrame]:
+    """Shared machinery for rolling capture ratios: slides `window` across the
+    aligned series and delegates each slice to a static capture function."""
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns.copy()
+
+    strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
+
+    if len(strat_df) < window:
+        empty = pd.DataFrame(columns=strat_df.columns)
+        return empty.iloc[:, 0] if isinstance(strategy_returns, pd.Series) else empty
+
+    records = {
+        strat_df.index[i]: static_fn(strat_df.iloc[i - window + 1 : i + 1],
+                                     bench.iloc[i - window + 1 : i + 1])
+        for i in range(window - 1, len(strat_df))
+    }
+
+    result = pd.DataFrame(records).T.dropna(how="all")
+
+    if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
+        return result.iloc[:, 0]
+    return result
+
+
+def rolling_up_capture(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int) -> Union[pd.Series, pd.DataFrame]:
+    """Rolling Up Capture Ratio using the Geometric Mean method.
+
+    Within each rolling window, only periods where the benchmark return is
+    positive are considered. The ratio is the geometric-mean strategy return
+    over those up-market periods divided by the geometric-mean benchmark return
+    over the same periods.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling up capture ratios. NaN where a
+        window contains no up-market periods or the benchmark geo-mean is zero.
+    """
+    return _rolling_capture(strategy_returns, benchmark_returns, window, up_capture)
+
+
+def rolling_down_capture(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int) -> Union[pd.Series, pd.DataFrame]:
+    """Rolling Down Capture Ratio using the Geometric Mean method.
+
+    Within each rolling window, only periods where the benchmark return is
+    negative are considered. The ratio is the geometric-mean strategy return
+    over those down-market periods divided by the geometric-mean benchmark
+    return over the same periods.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling down capture ratios. NaN where a
+        window contains no down-market periods or the benchmark geo-mean is zero.
+    """
+    return _rolling_capture(strategy_returns, benchmark_returns, window, down_capture)
+
+
+def rolling_capture_spread(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    window: int) -> Union[pd.Series, pd.DataFrame]:
+    """Rolling Capture Spread: rolling Up Capture − rolling Down Capture.
+
+    A positive spread indicates asymmetric upside participation over the
+    window (captures more of rallies than drawdowns); a negative spread
+    indicates the reverse. NaN propagates from either side.
+
+    Args:
+        strategy_returns: Periodic returns in decimal form (Series or DataFrame).
+        benchmark_returns: Periodic returns for the benchmark in decimal form.
+        window: Rolling window size in periods.
+
+    Returns:
+        pd.Series or pd.DataFrame of rolling capture spreads.
+    """
+    return _rolling_capture(strategy_returns, benchmark_returns, window, capture_spread)
+
 
 def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
     """

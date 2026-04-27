@@ -61,6 +61,26 @@ def downside_variance(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
     result = (downside_deviations ** 2).sum() / (n_obs - ddof)
     return result.squeeze()
 
+def ann_downside_deviation(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
+    ddof: int = 1, periods_per_year: int = None) -> Union[float, pd.Series]:
+    """
+    Annualized downside deviation (square root of annualized downside variance).
+
+    Args:
+        returns: A pandas Series or DataFrame of periodic returns.
+        mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+        periods_per_year (int, optional): Trading periods in a year. Inferred if None.
+
+    Returns:
+        A float (Series input) or pd.Series (DataFrame input).
+        NaN when observations are insufficient (n <= ddof or n == 0).
+    """
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(returns.index)
+
+    return np.sqrt(downside_variance(returns, mar=mar, ddof=ddof) * periods_per_year)
+
 # ==========================================
 # DRAWDOWNS
 # ==========================================

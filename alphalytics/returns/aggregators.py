@@ -4,8 +4,10 @@ import numpy as np
 
 from .relative import (
     hit_rate, bull_hit_rate, bear_hit_rate,
+    rolling_active_return, rolling_active_risk,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
-    active_return, tracking_error, information_ratio,
+    active_return, active_risk, information_ratio,
+    up_capture, down_capture, tail_capture_ratio,
 )
 
 # ==========================================
@@ -69,18 +71,18 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Data
 # ==========================================
 
 def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_returns: pd.Series,
-    periods_per_year: int = 12, formatted: bool = False) -> pd.DataFrame:
+    window: int = 36, periods_per_year: int = 12) -> pd.DataFrame:
     """Evaluates the relative consistency and active risk of one or multiple strategies.
 
     Args:
         strategy_returns: Periodic returns for the strategy/strategies.
         benchmark_returns: Periodic returns for the benchmark.
+        window: Rolling window size in periods for the active-return stability metric.
         periods_per_year: Annualization factor (252 for daily, 12 for monthly).
-        formatted: If True, returns strings with %, x, and decimals.
-            If False, returns raw floats.
 
     Returns:
-        A tearsheet with strategies as rows and consistency/risk metrics as columns.
+        A tearsheet with strategies as rows and consistency/risk metrics as columns,
+        with all values as floats.
     """
     if isinstance(strategy_returns, pd.Series):
         strategy_name = strategy_returns.name or "Strategy"
@@ -90,7 +92,6 @@ def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_r
 
     results = {}
 
-    # Calculate metrics, ordering them exactly how they should appear left-to-right
     for col in strat_df.columns:
         strat = strat_df[col]
 
@@ -98,34 +99,54 @@ def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_r
             "Hit Rate": hit_rate(strat, benchmark_returns),
             "Bull Hit Rate": bull_hit_rate(strat, benchmark_returns),
             "Bear Hit Rate": bear_hit_rate(strat, benchmark_returns),
-            "Win/Loss": win_loss_ratio(strat, benchmark_returns),
+            "Rolling AR Std": rolling_active_return(strat, benchmark_returns, window, periods_per_year).std(),
+            "Act. Ret. (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
+            "TE (Ann.)": active_risk(strat, benchmark_returns, periods_per_year),
+            "Info Ratio": information_ratio(strat, benchmark_returns, periods_per_year),
+        }
+
+    return pd.DataFrame(results).T
+
+
+# ==========================================
+# EVALUATE INVESTMENTS ASYMMETRY
+# ==========================================
+
+def evaluate_asymmetry(strategy_returns: pd.DataFrame | pd.Series,
+    benchmark_returns: pd.Series) -> pd.DataFrame:
+    """Evaluates the up/down asymmetry and payoff profile of one or multiple strategies.
+
+    Args:
+        strategy_returns: Periodic returns for the strategy/strategies.
+        benchmark_returns: Periodic returns for the benchmark.
+
+    Returns:
+        A tearsheet with strategies as rows and asymmetry/payoff metrics as columns,
+        with all values as floats.
+    """
+    if isinstance(strategy_returns, pd.Series):
+        strategy_name = strategy_returns.name or "Strategy"
+        strat_df = strategy_returns.to_frame(name=strategy_name)
+    else:
+        strat_df = strategy_returns
+
+    results = {}
+
+    for col in strat_df.columns:
+        strat = strat_df[col]
+
+        up = up_capture(strat, benchmark_returns)
+        down = down_capture(strat, benchmark_returns)
+
+        results[col] = {
+            "Up Capture": up,
+            "Down Capture": down,
+            "Overall Capture": np.nan if pd.isna(down) or down == 0 else up / down,
+            "Tail Capture": tail_capture_ratio(strat, benchmark_returns),
             "Bull Win/Loss": bull_win_loss_ratio(strat, benchmark_returns),
             "Bear Win/Loss": bear_win_loss_ratio(strat, benchmark_returns),
-            "Act. Ret. (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
-            "TE (Ann.)": tracking_error(strat, benchmark_returns, periods_per_year),
-            "Info Ratio": information_ratio(strat, benchmark_returns, periods_per_year)
+            "Win/Loss Ratio": win_loss_ratio(strat, benchmark_returns),
+            
         }
 
-    # Convert dictionary to DataFrame and transpose (.T) so strategies are rows
-    tearsheet = pd.DataFrame(results).T
-
-    # Apply string formatting for presentation if requested
-    if formatted:
-        format_rules = {
-            "Hit Rate": "{:.2%}",
-            "Bull Hit Rate": "{:.2%}",
-            "Bear Hit Rate": "{:.2%}",
-            "Win/Loss": "{:.2f}",
-            "Bull Win/Loss": "{:.2f}",
-            "Bear Win/Loss": "{:.2f}",
-            "Act. Ret. (Ann.)": "{:.2%}",
-            "TE (Ann.)": "{:.2%}",
-            "Info Ratio": "{:.2f}"
-        }
-        for metric, fmt in format_rules.items():
-            if metric in tearsheet.columns:
-                tearsheet[metric] = tearsheet[metric].apply(
-                    lambda x: fmt.format(x) if pd.notnull(x) else "N/A"
-                )
-
-    return tearsheet
+    return pd.DataFrame(results).T
