@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(py -m pytest tests/test_ratios.py -q)"
+      "Bash(py -m pytest tests/test_ratios.py -q)",
+      "Bash(python -c ' *)",
+      "Bash(py -c ' *)",
+      "PowerShell(Get-Command python, python3, py -ErrorAction SilentlyContinue)"
     ]
   }
 }

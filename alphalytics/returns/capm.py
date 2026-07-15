@@ -2,6 +2,8 @@
 import pandas as pd
 import numpy as np
 
+from alphalytics.utils import _infer_periods_per_year
+
 
 # ============== CAPM METRICS ============== #
 
@@ -86,7 +88,7 @@ def bull_bear_beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
 
     return pd.DataFrame({"Bull Beta": bull_beta, "Bear Beta": bear_beta})
 
-def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = 12) -> pd.DataFrame:
+def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per_year: int = None) -> pd.DataFrame:
     """
     Calculates CAPM Beta and Annualized Alpha for multiple strategies simultaneously.
 
@@ -94,11 +96,19 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
         returns (pd.DataFrame): Periodic returns of the strategies.
         benchmark (pd.Series, optional): Periodic returns of the benchmark.
                                          Defaults to an equal-weight average of all strategies.
-        periods_per_year (int): Periods per year (e.g., 252 for daily, 12 for monthly).
-                                Defaults to 12 (monthly).
+        periods_per_year (int, optional): Periods per year (e.g., 252 for daily, 12 for monthly).
+                                Inferred from the returns' index when None.
+
+    Benchmark alignment follows the same contract as beta(): returns and
+    benchmark must share the same index. Annualized Alpha uses the linear
+    Jensen's-alpha convention (Periodic Alpha * periods_per_year).
 
     Returns:
         pd.DataFrame: A summary table with Beta, Periodic Alpha, and Annualized Alpha for each strategy.
+
+    Raises:
+        TypeError: If inputs are not the expected pandas types.
+        ValueError: If returns is empty, or returns and benchmark do not share the same index.
     """
     # 1. Validate inputs
     if not isinstance(returns, pd.DataFrame):
@@ -113,27 +123,29 @@ def compute_capm(returns: pd.DataFrame, benchmark: pd.Series = None, periods_per
     elif not isinstance(benchmark, pd.Series):
         raise TypeError(f"benchmark must be a pd.Series, got {type(benchmark).__name__}")
 
-    # 2. Align data and handle missing values naturally
-    data = returns.copy()
-    data['bench_'] = benchmark
-    data = data.dropna()
+    if not returns.index.equals(benchmark.index):
+        raise ValueError(
+            "returns and benchmark must share the same index. "
+            "Align them before calling compute_capm()."
+        )
 
-    aligned_returns = data.drop(columns=['bench_'])
-    aligned_bench = data['bench_']
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(returns.index)
 
-    # 3. Vectorized CAPM Math
-    returns_centered = aligned_returns - aligned_returns.mean()
-    bench_centered = aligned_bench - aligned_bench.mean()
+    # 2. Align data and drop periods with missing values
+    data = pd.concat([returns, benchmark.rename("__benchmark__")], axis=1).dropna()
+    aligned_returns = data[returns.columns]
+    aligned_bench = data["__benchmark__"]
 
-    dof = len(data) - 1
-    covariances = (returns_centered.mul(bench_centered, axis=0)).sum() / dof
-    bench_variance = aligned_bench.var(ddof=1)
+    empty_result = pd.DataFrame(
+        {"Beta": np.nan, "Periodic Alpha": np.nan, "Annualized Alpha": np.nan},
+        index=returns.columns,
+    )
+    if len(data) < 2:
+        return empty_result
 
-    # Calculate Beta (guard against zero-variance benchmark)
-    if bench_variance == 0 or np.isclose(bench_variance, 0, atol=1e-15):
-        betas = pd.Series(np.nan, index=aligned_returns.columns)
-    else:
-        betas = covariances / bench_variance
+    # 3. Beta (reuses the validated, zero-variance-guarded implementation)
+    betas = beta(aligned_returns, aligned_bench)
 
     # Calculate Periodic Alpha, then Annualize it
     # Annualized Alpha = Periodic Alpha * Periods per Year

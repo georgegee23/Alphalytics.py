@@ -159,6 +159,25 @@ def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
     if len(index) < 2:
         return 12  # default to monthly
 
+    if not isinstance(index, pd.DatetimeIndex):
+        # Reject numeric/positional indexes outright — pandas would otherwise
+        # reinterpret integers as epoch-nanosecond timestamps and silently
+        # guess a (wrong) frequency. Only attempt to parse string/object dates.
+        if pd.api.types.is_numeric_dtype(index):
+            index = None
+        else:
+            try:
+                index = pd.DatetimeIndex(index)
+            except (TypeError, ValueError):
+                index = None
+        if index is None:
+            raise TypeError(
+                "Cannot infer periods_per_year from a non-datetime index. "
+                "Either give the returns a DatetimeIndex "
+                "(e.g. df.index = pd.to_datetime(df.index)) or pass "
+                "periods_per_year explicitly (252 daily, 52 weekly, 12 monthly)."
+            )
+
     median_days = pd.Series(index).diff().dt.days.median()
 
     if median_days <= 3:

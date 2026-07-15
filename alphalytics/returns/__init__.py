@@ -4,15 +4,19 @@ from .metrics import (
 )
 
 from .risk import (
-    annual_std, downside_variance, ann_downside_deviation,
-    
-    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, 
-    average_drawdown, average_drawdown_duration 
+    annual_std, rolling_volatility, vol_of_vol,
+    downside_variance, ann_downside_deviation,
+    upside_variance, ann_upside_deviation, variance_ratio,
+
+    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, drawdowns_table,
+    time_to_recovery_table,
+    average_drawdown, average_drawdown_duration, ulcer_index, cvar,
+    anderson_darling_pvalue, bowley_skewness, tail_count,
 )
 
 from .ratios import (
     sharpe_ratio, sortino_ratio, calmar_ratio, tail_ratio, pain_ratio, deviation_ratio,
-    tail_dispersion_ratio,
+    tail_dispersion_ratio, treynor_ratio, martin_ratio, starr, rachev_ratio,
 )
 
 from .capm import compute_capm, beta, bull_bear_beta, rolling_beta
@@ -28,4 +32,4 @@ from .relative import (
     omega_ratio, rolling_omega_ratio,
 )
 
-from .aggregators import evaluate_consistency, evaluate_asymmetry, performance_table
+from .aggregators import evaluate_consistency, evaluate_asymmetry, evaluate_rar, evaluate_dispersion, evaluate_distribution, performance_table

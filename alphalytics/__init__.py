@@ -13,12 +13,16 @@ from .returns import (
     return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
     cumgrowth,
 
-    annual_std, downside_variance, ann_downside_deviation,
-    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, 
-    average_drawdown, average_drawdown_duration, 
+    annual_std, rolling_volatility, vol_of_vol,
+    downside_variance, ann_downside_deviation,
+    upside_variance, ann_upside_deviation, variance_ratio,
+    to_drawdowns, max_drawdown, top_drawdowns, compare_drawdowns, drawdowns_table,
+    time_to_recovery_table,
+    average_drawdown, average_drawdown_duration, ulcer_index, cvar,
+    anderson_darling_pvalue, bowley_skewness, tail_count,
     
     sharpe_ratio, sortino_ratio, calmar_ratio, omega_ratio, tail_ratio, pain_ratio, deviation_ratio,
-    tail_dispersion_ratio,
+    tail_dispersion_ratio, treynor_ratio, martin_ratio, starr, rachev_ratio,
     compute_capm, beta, bull_bear_beta, rolling_beta,
     active_return, active_risk, information_ratio,
     rolling_active_return, rolling_hit_rate, rolling_active_risk, rolling_information_ratio,
@@ -28,7 +32,8 @@ from .returns import (
     up_capture, down_capture, capture_spread, capture_ratios,
     rolling_up_capture, rolling_down_capture, rolling_capture_spread,
     rolling_omega_ratio,
-    evaluate_consistency, evaluate_asymmetry,
+    evaluate_consistency, evaluate_asymmetry, evaluate_rar, evaluate_dispersion,
+    evaluate_distribution,
 )
 
 # --- Factor analysis ---
@@ -43,7 +48,8 @@ from .factors import (
 
 # --- Plotting ---
 from .plotting import (
-    plot_growth, plot_cumulative_performance, plot_risk_return,
+    plot_growth, plot_cumulative_performance, plot_risk_return, plot_sortino, plot_risk_stability, plot_deviation,
+    plot_ridgeline, plot_qq,
     plot_capture_ratios, plot_capture, plot_tail_capture, plot_capm, plot_capture_hit_rate, plot_hit_rates, plot_win_loss,
     plot_area, plot_rolling_overunder, plot_xy_symmetric,
     plot_rolling_information_ratio, plot_rolling_active_return, plot_rolling_return,
@@ -66,11 +72,15 @@ __all__ = [
     "return_n", "return_ytd", "ann_return", "ann_return_common_si", "performance_table",
     "cumgrowth",
     # returns.risk
-    "annual_std", "downside_variance", "ann_downside_deviation",
-    "to_drawdowns", "max_drawdown", "top_drawdowns", "compare_drawdowns", 
-    "average_drawdown", "average_drawdown_duration",
+    "annual_std", "rolling_volatility", "vol_of_vol",
+    "downside_variance", "ann_downside_deviation",
+    "upside_variance", "ann_upside_deviation", "variance_ratio",
+    "to_drawdowns", "max_drawdown", "top_drawdowns", "compare_drawdowns", "drawdowns_table",
+    "time_to_recovery_table",
+    "average_drawdown", "average_drawdown_duration", "ulcer_index", "cvar",
+    "anderson_darling_pvalue", "bowley_skewness", "tail_count",
     # returns.ratios
-    "sharpe_ratio", "sortino_ratio", "calmar_ratio", "omega_ratio", "rolling_omega_ratio", "tail_ratio", "pain_ratio", "deviation_ratio", "tail_dispersion_ratio",
+    "sharpe_ratio", "sortino_ratio", "calmar_ratio", "omega_ratio", "rolling_omega_ratio", "tail_ratio", "pain_ratio", "deviation_ratio", "tail_dispersion_ratio", "treynor_ratio", "martin_ratio", "starr", "rachev_ratio",
     # returns.capm
     "compute_capm", "beta", "bull_bear_beta", "rolling_beta",
     # returns.relative
@@ -82,7 +92,8 @@ __all__ = [
     "up_capture", "down_capture", "capture_spread", "capture_ratios",
     "rolling_up_capture", "rolling_down_capture", "rolling_capture_spread",
     # returns.aggregators
-    "evaluate_consistency", "evaluate_asymmetry",
+    "evaluate_consistency", "evaluate_asymmetry", "evaluate_rar", "evaluate_dispersion",
+    "evaluate_distribution",
     # factors.ic
     "cs_spearmanr", "ts_spearmanr", "compute_ic_stats", "factor_decay",
     # factors.quantiles
@@ -94,7 +105,8 @@ __all__ = [
     # factors.utils
     "compute_forward_returns",
     # plotting
-    "plot_growth", "plot_cumulative_performance", "plot_risk_return",
+    "plot_growth", "plot_cumulative_performance", "plot_risk_return", "plot_sortino", "plot_risk_stability", "plot_deviation",
+    "plot_ridgeline", "plot_qq",
     "plot_capture_ratios", "plot_capture", "plot_tail_capture", "plot_capm", "plot_capture_hit_rate", "plot_hit_rates", "plot_win_loss",
     "plot_area", "plot_rolling_overunder", "plot_xy_symmetric",
     "plot_factor_data", "plot_quantiles_risk_metrics",

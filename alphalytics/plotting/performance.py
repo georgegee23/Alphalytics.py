@@ -8,11 +8,13 @@ import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 
 import seaborn as sns
+from scipy import stats as _sp_stats
 
 from alphalytics.returns.relative import (capture_ratios, hit_rate, rolling_information_ratio,
                                           rolling_active_return,
                                           win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio)
 from alphalytics.returns.metrics import annualized_rolling_return
+from alphalytics.returns.risk import ann_downside_deviation, ann_upside_deviation, annual_std, vol_of_vol
 from alphalytics.returns.capm import compute_capm
 from alphalytics.utils import _infer_periods_per_year
 
@@ -119,15 +121,30 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
 
 def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
                      periods_per_year=None, title="Risk-Return Analysis", fig_size=(3, 3), font_size=6,
-                     legend_names=None, colors=None):
+                     legend_names=None, colors=None,
+                     anchor_zero: bool = True, xlim=None, ylim=None):
     """
     Plots a Risk-Return scatter chart for one or more return series.
 
-    returns: pd.Series (single series) or pd.DataFrame (multiple series, one per column).
-             Include the benchmark as a column in the DataFrame.
-    periods_per_year: inferred from the index if None.
-    legend_names: list of labels. Defaults to column/series names.
-    colors: list of colors. If None, uses the active matplotlib style cycle.
+    Args:
+        returns: pd.Series (single series) or pd.DataFrame (multiple series, one per column).
+                 Include the benchmark as a column in the DataFrame.
+        periods_per_year: inferred from the index if None.
+        title: Plot title.
+        fig_size: Figure dimensions in inches.
+        font_size: Base font size for title, axis labels, ticks, and legend.
+        legend_names: list of labels. Defaults to column/series names.
+        colors: list of colors. If None, uses the active matplotlib style cycle.
+        anchor_zero: If True (default), frame the x-axis from 0, force the
+            y-axis to include 0, and draw zero crosshairs — emphasizes
+            absolute risk and return levels. If False, frame tightly around
+            the data with padding — emphasizes the spread between strategies
+            that cluster far from zero.
+        xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
+        ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
     """
     # 1. Normalize into a DataFrame
     if isinstance(returns, pd.Series):
@@ -176,13 +193,31 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     ax.set_ylabel('Annualized Return', fontsize=font_size)
 
     ax.grid(True, linestyle='--', alpha=0.6)
-    ax.axhline(0, color='black', linewidth=1)
-    ax.axvline(0, color='black', linewidth=1)
+    if anchor_zero:
+        ax.axhline(0, color='black', linewidth=1)
+        ax.axvline(0, color='black', linewidth=1)
 
-    max_risk = max(all_risks) * 1.2
-    max_ret = max(abs(r) for r in all_rets) * 1.2
-    ax.set_xlim(0, max_risk)
-    ax.set_ylim(min(-0.05, min(all_rets) * 1.2), max(0.05, max_ret))
+    if xlim is not None:
+        x_lo, x_hi = xlim
+    elif anchor_zero:
+        x_lo, x_hi = 0.0, (max(all_risks, default=0) * 1.2 or 0.01)
+    else:
+        lo, hi = min(all_risks), max(all_risks)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        x_lo, x_hi = lo - pad, hi + pad
+
+    if ylim is not None:
+        y_lo, y_hi = ylim
+    elif anchor_zero:
+        max_ret = max(abs(r) for r in all_rets) * 1.2
+        y_lo, y_hi = min(-0.05, min(all_rets) * 1.2), max(0.05, max_ret)
+    else:
+        lo, hi = min(all_rets), max(all_rets)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        y_lo, y_hi = lo - pad, hi + pad
+
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(y_lo, y_hi)
 
     def percentage_formatter(x, _pos):
         return '{:,.1%}'.format(x)
@@ -194,6 +229,543 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     plt.legend(loc='upper left', fontsize=font_size)
     plt.tight_layout()
 
+    return fig, ax
+
+
+def plot_sortino(returns: Union[pd.Series, pd.DataFrame],
+                 mar: float = 0.0, periods_per_year=None,
+                 title="Sortino Risk-Return Analysis", fig_size=(3, 3), font_size=6,
+                 legend_names=None, colors=None,
+                 anchor_zero: bool = True, xlim=None, ylim=None):
+    """
+    Plots a Sortino Risk-Return scatter chart for one or more return series.
+
+    Identical to `plot_risk_return` but the x-axis shows annualised downside
+    deviation (the denominator of the Sortino ratio) instead of total
+    volatility. The slope from the origin to each point is the strategy's
+    Sortino ratio with MAR = `mar`.
+
+    Args:
+        returns: pd.Series (single series) or pd.DataFrame (multiple series, one per column).
+                 Include the benchmark as a column in the DataFrame.
+        mar: Minimum Acceptable Return per period — threshold below which returns
+             contribute to downside deviation. Defaults to 0.0.
+        periods_per_year: inferred from the index if None.
+        title: Plot title.
+        fig_size: Figure dimensions in inches.
+        font_size: Base font size for title, axis labels, ticks, and legend.
+        legend_names: list of labels. Defaults to column/series names.
+        colors: list of colors. If None, uses the active matplotlib style cycle.
+        anchor_zero: If True (default), frame the x-axis from 0, force the
+            y-axis to include 0, and draw zero crosshairs — emphasizes
+            absolute risk and return levels. If False, frame tightly around
+            the data with padding — emphasizes the spread between strategies
+            that cluster far from zero.
+        xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
+        ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    if isinstance(returns, pd.Series):
+        df = returns.to_frame(name=returns.name or "Strategy")
+    else:
+        df = returns
+
+    n = len(df.columns)
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(df.index)
+
+    if legend_names is None:
+        legend_names = list(df.columns)
+    elif len(legend_names) < n:
+        legend_names = list(legend_names) + [f"Series {i}" for i in range(len(legend_names), n)]
+
+    if colors is not None:
+        colors = [colors[i % len(colors)] for i in range(n)]
+
+    all_risks, all_rets = [], []
+    for col in df.columns:
+        series = df[col].dropna()
+        ann_ret = float(series.mean()) * periods_per_year
+        downside = float(ann_downside_deviation(series, mar=mar, periods_per_year=periods_per_year))
+        all_risks.append(downside)
+        all_rets.append(ann_ret)
+
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    for i, (risk, ret) in enumerate(zip(all_risks, all_rets)):
+        color = colors[i] if colors is not None else None
+        ax.scatter(risk, ret, color=color, s=150, label=legend_names[i], zorder=5, edgecolors='black')
+
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
+    ax.set_xlabel('Annualized Downside Deviation', fontsize=font_size)
+    ax.set_ylabel('Annualized Return', fontsize=font_size)
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    if anchor_zero:
+        ax.axhline(0, color='black', linewidth=1)
+        ax.axvline(0, color='black', linewidth=1)
+
+    if xlim is not None:
+        x_lo, x_hi = xlim
+    elif anchor_zero:
+        x_lo, x_hi = 0.0, (max(all_risks, default=0) * 1.2 or 0.01)
+    else:
+        lo, hi = min(all_risks), max(all_risks)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        x_lo, x_hi = lo - pad, hi + pad
+
+    if ylim is not None:
+        y_lo, y_hi = ylim
+    elif anchor_zero:
+        max_ret = max(abs(r) for r in all_rets) * 1.2
+        y_lo, y_hi = min(-0.05, min(all_rets) * 1.2), max(0.05, max_ret)
+    else:
+        lo, hi = min(all_rets), max(all_rets)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        y_lo, y_hi = lo - pad, hi + pad
+
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(y_lo, y_hi)
+
+    def percentage_formatter(x, _pos):
+        return '{:,.1%}'.format(x)
+
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.tick_params(axis='both', labelsize=font_size)
+
+    plt.legend(loc='upper left', fontsize=font_size)
+    plt.tight_layout()
+
+    return fig, ax
+
+
+def plot_deviation(returns: Union[pd.Series, pd.DataFrame],
+                   mar: float = 0.0, periods_per_year=None,
+                   title="Upside vs Downside Deviation", fig_size=(3, 3), font_size=6,
+                   legend_names=None, colors=None,
+                   anchor_zero: bool = True, xlim=None, ylim=None):
+    """
+    Scatter of annualized downside deviation (x) against annualized upside deviation (y).
+
+    Visual analogue of `deviation_ratio`: the slope from the origin to each
+    point is the UD/DD ratio. Points above the diagonal (y = x) have upside
+    dispersion exceeding downside dispersion — a positively-skewed risk
+    profile; points below have the opposite.
+
+    Args:
+        returns: pd.Series (single) or pd.DataFrame (multiple, one per column).
+                 Include the benchmark as a column in the DataFrame to anchor.
+        mar: Minimum Acceptable Return per period — threshold splitting upside
+             from downside. Defaults to 0.0.
+        periods_per_year: Inferred from the index if None.
+        title: Plot title.
+        fig_size: Figure dimensions in inches.
+        font_size: Base font size for title, axis labels, ticks, and legend.
+        legend_names: List of labels. Defaults to column/series names.
+        colors: List of colors. If None, uses the active matplotlib style cycle.
+        anchor_zero: If True (default), frame both axes from 0 and draw zero
+            crosshairs — emphasizes absolute deviation levels. If False, frame
+            tightly around the data with padding — emphasizes the spread
+            between strategies that cluster far from zero.
+        xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
+        ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    if isinstance(returns, pd.Series):
+        df = returns.to_frame(name=returns.name or "Strategy")
+    else:
+        df = returns
+
+    n = len(df.columns)
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(df.index)
+
+    if legend_names is None:
+        legend_names = list(df.columns)
+    elif len(legend_names) < n:
+        legend_names = list(legend_names) + [f"Series {i}" for i in range(len(legend_names), n)]
+
+    if colors is not None:
+        colors = [colors[i % len(colors)] for i in range(n)]
+
+    all_dn, all_up = [], []
+    for col in df.columns:
+        series = df[col].dropna()
+        all_dn.append(float(ann_downside_deviation(series, mar=mar, periods_per_year=periods_per_year)))
+        all_up.append(float(ann_upside_deviation(series, mar=mar, periods_per_year=periods_per_year)))
+
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    for i, (dn, up) in enumerate(zip(all_dn, all_up)):
+        color = colors[i] if colors is not None else None
+        ax.scatter(dn, up, color=color, s=150, label=legend_names[i],
+            zorder=5, edgecolors='black')
+
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
+    ax.set_xlabel('Annualized Downside Deviation', fontsize=font_size)
+    ax.set_ylabel('Annualized Upside Deviation', fontsize=font_size)
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    if anchor_zero:
+        ax.axhline(0, color='black', linewidth=1)
+        ax.axvline(0, color='black', linewidth=1)
+
+    if xlim is not None:
+        x_lo, x_hi = xlim
+    elif anchor_zero:
+        x_lo, x_hi = 0.0, (max(all_dn, default=0) * 1.2 or 0.01)
+    else:
+        lo, hi = min(all_dn), max(all_dn)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        x_lo, x_hi = lo - pad, hi + pad
+
+    if ylim is not None:
+        y_lo, y_hi = ylim
+    elif anchor_zero:
+        y_lo, y_hi = 0.0, (max(all_up, default=0) * 1.2 or 0.01)
+    else:
+        lo, hi = min(all_up), max(all_up)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        y_lo, y_hi = lo - pad, hi + pad
+
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(y_lo, y_hi)
+
+    def percentage_formatter(x, _pos):
+        return '{:,.1%}'.format(x)
+
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.tick_params(axis='both', labelsize=font_size)
+
+    plt.legend(loc='upper left', fontsize=font_size)
+    plt.tight_layout()
+
+    return fig, ax
+
+
+def plot_risk_stability(returns: Union[pd.Series, pd.DataFrame],
+                           window: int = 36, periods_per_year=None, normalized: bool = True,
+                           title="Risk Stability: Vol-of-Vol", fig_size=(3, 3), font_size=6,
+                           legend_names=None, colors=None,
+                           anchor_zero: bool = True, xlim=None, ylim=None):
+    """
+    Scatter of annualized volatility (x) against vol-of-vol (y) for one or more series.
+
+    Reveals the dispersion *of* the risk-level alongside the risk-level itself.
+    A strategy can be high-vol but stable (right, low) or low-vol but unstable
+    (left, high). With ``normalized=True`` (default) the y-axis shows the
+    coefficient of variation of rolling vol — unitless and comparable across
+    strategies with different absolute risk levels.
+
+    Args:
+        returns: pd.Series (single) or pd.DataFrame (multiple, one per column).
+                 Include the benchmark as a column in the DataFrame to anchor.
+        window: Rolling window size for the inner sigma_t. Defaults to 36.
+        periods_per_year: Inferred from the index if None.
+        normalized: If True, y is std(sigma_t) / mean(sigma_t). Defaults to True.
+        title: Plot title.
+        fig_size: Figure dimensions in inches.
+        font_size: Base font size for title, axis labels, ticks, and legend.
+        legend_names: List of labels. Defaults to column/series names.
+        colors: List of colors. If None, uses the active matplotlib style cycle.
+        anchor_zero: If True (default), frame both axes from 0 and draw zero
+            crosshairs — emphasizes absolute risk levels. If False, frame
+            tightly around the data with padding — emphasizes differences
+            between strategies that cluster far from zero.
+        xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
+        ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    if isinstance(returns, pd.Series):
+        df = returns.to_frame(name=returns.name or "Strategy")
+    else:
+        df = returns
+
+    n = len(df.columns)
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(df.index)
+
+    if legend_names is None:
+        legend_names = list(df.columns)
+    elif len(legend_names) < n:
+        legend_names = list(legend_names) + [f"Series {i}" for i in range(len(legend_names), n)]
+
+    if colors is not None:
+        colors = [colors[i % len(colors)] for i in range(n)]
+
+    all_vol, all_vov = [], []
+    for col in df.columns:
+        series = df[col].dropna()
+        all_vol.append(float(annual_std(series, periods_per_year=periods_per_year)))
+        all_vov.append(float(vol_of_vol(series, window=window,
+            periods_per_year=periods_per_year, normalized=normalized)))
+
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    for i, (vol, vov) in enumerate(zip(all_vol, all_vov)):
+        color = colors[i] if colors is not None else None
+        ax.scatter(vol, vov, color=color, s=150, label=legend_names[i],
+            zorder=5, edgecolors='black')
+
+    ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
+    ax.set_xlabel('Annualized Volatility', fontsize=font_size)
+    ax.set_ylabel('Vol of Vol (CV)' if normalized else 'Vol of Vol (Ann.)',
+        fontsize=font_size)
+
+    ax.grid(True, linestyle='--', alpha=0.6)
+    if anchor_zero:
+        ax.axhline(0, color='black', linewidth=1)
+        ax.axvline(0, color='black', linewidth=1)
+
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    elif anchor_zero:
+        max_vol = max(all_vol) * 1.2 if max(all_vol) > 0 else 0.01
+        ax.set_xlim(0, max_vol)
+    else:
+        lo, hi = min(all_vol), max(all_vol)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        ax.set_xlim(lo - pad, hi + pad)
+
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    elif anchor_zero:
+        max_vov = max(all_vov) * 1.2 if max(all_vov) > 0 else 0.01
+        ax.set_ylim(0, max_vov)
+    else:
+        lo, hi = min(all_vov), max(all_vov)
+        pad = (hi - lo) * 0.15 if hi > lo else max(abs(hi) * 0.05, 0.01)
+        ax.set_ylim(lo - pad, hi + pad)
+
+    def percentage_formatter(x, _pos):
+        return '{:,.1%}'.format(x)
+
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(percentage_formatter))
+    ax.tick_params(axis='both', labelsize=font_size)
+
+    plt.legend(loc='upper left', fontsize=font_size)
+    plt.tight_layout()
+
+    return fig, ax
+
+
+def plot_ridgeline(returns: Union[pd.Series, pd.DataFrame],
+                   overlap: float = 0.6, bw_method=None, colors=None,
+                   figsize=(5, 4), title: str = "Return Distribution",
+                   fontsize: int = 7, xlim: Optional[Tuple[float, float]] = None,
+                   trim_quantiles: Tuple[float, float] = (0.01, 0.99),
+                   n_points: int = 400, show_median: bool = True,
+                   fill_alpha: float = 0.75, linewidth: float = 1.0,
+                   palette: str = "rocket_r"):
+    """Ridgeline plot of return distributions, one ridge per strategy.
+
+    Stacks Gaussian-KDE estimates of each return series with vertical
+    offsets so distribution shapes can be compared at a glance —
+    skew, multi-modality, and tail mass become visually obvious in a
+    way that summary statistics hide.
+
+    Args:
+        returns: pd.Series (single) or pd.DataFrame (one column per strategy).
+        overlap: Fraction of vertical overlap between adjacent ridges.
+            ``0`` = ridges just touch, ``0.6`` = significant overlap,
+            ``0.9`` = heavy overlap. Clamped to ``[0, 0.95]``.
+        bw_method: Bandwidth selector forwarded to ``scipy.stats.gaussian_kde``
+            (``"scott"``, ``"silverman"``, a scalar, or a callable).
+        colors: Explicit list of fill colors. If ``None``, uses ``palette``.
+        figsize: Figure dimensions (width, height) in inches.
+        title: Plot title.
+        fontsize: Base font size for title, axis labels, ticks, and ridge labels.
+        xlim: Explicit ``(low, high)`` x-axis bounds. If ``None``, computed
+            from ``trim_quantiles`` to suppress extreme outliers.
+        trim_quantiles: Lower/upper quantiles used to derive the default
+            x-range. Ignored when ``xlim`` is given.
+        n_points: KDE evaluation grid resolution.
+        show_median: Draw a dotted vertical line at each ridge's median.
+        fill_alpha: Opacity of each ridge's fill.
+        linewidth: Width of each ridge's outline.
+        palette: Seaborn palette name used when ``colors`` is None.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    if isinstance(returns, pd.Series):
+        df = returns.to_frame(name=returns.name or "Strategy")
+    else:
+        df = returns
+
+    cols = list(df.columns)
+    n = len(cols)
+    if n == 0:
+        raise ValueError("returns has no columns to plot")
+
+    overlap = float(np.clip(overlap, 0.0, 0.95))
+
+    if xlim is None:
+        flat = df.values.ravel()
+        flat = flat[~np.isnan(flat)]
+        if flat.size == 0:
+            raise ValueError("returns contains no observations")
+        x_lo = float(np.quantile(flat, trim_quantiles[0]))
+        x_hi = float(np.quantile(flat, trim_quantiles[1]))
+        span = x_hi - x_lo if x_hi > x_lo else max(abs(x_hi), 1e-6)
+        x_lo -= span * 0.05
+        x_hi += span * 0.05
+    else:
+        x_lo, x_hi = xlim
+
+    grid = np.linspace(x_lo, x_hi, n_points)
+
+    densities, peaks, medians, peak_at_median = [], [], [], []
+    for col in cols:
+        s = df[col].dropna().values
+        if len(s) < 2 or np.std(s) == 0:
+            densities.append(np.zeros_like(grid))
+            peaks.append(0.0)
+            medians.append(np.nan)
+            peak_at_median.append(0.0)
+            continue
+        kde = _sp_stats.gaussian_kde(s, bw_method=bw_method)
+        y = kde(grid)
+        med = float(np.median(s))
+        densities.append(y)
+        peaks.append(float(np.max(y)))
+        medians.append(med)
+        peak_at_median.append(float(kde(med)[0]))
+
+    peak = max(peaks) if any(p > 0 for p in peaks) else 1.0
+    step = peak * (1.0 - overlap)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if colors is None:
+        ridge_colors = sns.color_palette(palette, n)
+    else:
+        ridge_colors = [colors[i % len(colors)] for i in range(n)]
+
+    baselines = []
+    for i, (col, y, med, med_h) in enumerate(zip(cols, densities, medians, peak_at_median)):
+        baseline = (n - 1 - i) * step
+        baselines.append(baseline)
+        z = 2 + i * 0.01
+        ax.fill_between(grid, baseline, baseline + y,
+                        color=ridge_colors[i], alpha=fill_alpha,
+                        linewidth=0, zorder=z)
+        ax.plot(grid, baseline + y, color="black",
+                linewidth=linewidth, zorder=z + 0.005)
+        ax.hlines(baseline, x_lo, x_hi, color="black",
+                  linewidth=0.5, alpha=0.4, zorder=1)
+        if show_median and not np.isnan(med) and x_lo <= med <= x_hi:
+            ax.vlines(med, baseline, baseline + med_h,
+                      color="black", linewidth=0.8, linestyle=":",
+                      zorder=z + 0.006)
+
+    ax.set_yticks(baselines)
+    ax.set_yticklabels(cols, fontsize=fontsize)
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(-step * 0.2, (n - 1) * step + peak * 1.1)
+    ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda x, _: f"{x:.1%}"))
+    ax.tick_params(axis="x", labelsize=fontsize)
+    ax.set_title(title, fontsize=fontsize + 3, fontweight="bold", pad=5)
+    ax.set_xlabel("Return", fontsize=fontsize)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+    ax.grid(True, axis="x", linestyle="--", alpha=0.3)
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def plot_qq(returns: Union[pd.Series, pd.DataFrame],
+            dist: str = "norm", figsize=(4, 4),
+            title: str = "Normal Q-Q", fontsize: int = 7,
+            colors=None, markersize: float = 12.0,
+            line_color: str = "black"):
+    """Single-axes QQ plot of one or more return series.
+
+    Each series is z-scored (mean 0, std 1) before its theoretical-vs-sample
+    quantiles are plotted, so all series share a common scale and the 45°
+    reference line ``y = x`` represents perfect agreement with the reference
+    distribution. Deviation from the line in the tails reveals fat tails
+    (steep ends) or thin tails (flat ends); systematic curvature reveals
+    skewness.
+
+    Args:
+        returns: pd.Series (single) or pd.DataFrame (one column per strategy,
+            all overlaid on a single axes).
+        dist: Reference distribution name, forwarded to
+            ``scipy.stats.probplot``. Defaults to ``"norm"``.
+        figsize: Figure dimensions (width, height) in inches.
+        title: Plot title.
+        fontsize: Base font size for title, axis labels, ticks, and legend.
+        colors: Explicit list of point colors. If ``None``, uses the active
+            matplotlib style cycle.
+        markersize: Marker size for the scatter points.
+        line_color: Color of the 45° ``y = x`` reference line.
+
+    Returns:
+        The matplotlib Figure and Axes objects.
+    """
+    if isinstance(returns, pd.Series):
+        df = returns.to_frame(name=returns.name or "Strategy")
+    else:
+        df = returns
+
+    cols = list(df.columns)
+    n = len(cols)
+    if n == 0:
+        raise ValueError("returns has no columns to plot")
+
+    if colors is None:
+        cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+        colors = [cycle[i % len(cycle)] for i in range(n)] if cycle else [None] * n
+    else:
+        colors = [colors[i % len(colors)] for i in range(n)]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    all_q = []
+    for col, color in zip(cols, colors):
+        s = df[col].dropna()
+        if len(s) < 2 or s.std() == 0:
+            continue
+        z = (s.values - s.mean()) / s.std(ddof=1)
+        theo_q, samp_q = _sp_stats.probplot(z, dist=dist, fit=False)
+        ax.scatter(theo_q, samp_q, s=markersize, color=color, alpha=0.7,
+                   edgecolors="none", label=col, zorder=3)
+        all_q.append(theo_q); all_q.append(samp_q)
+
+    if all_q:
+        lo = float(min(arr.min() for arr in all_q))
+        hi = float(max(arr.max() for arr in all_q))
+        pad = (hi - lo) * 0.05
+        lim_lo, lim_hi = lo - pad, hi + pad
+        ax.plot([lim_lo, lim_hi], [lim_lo, lim_hi],
+                color=line_color, linewidth=1.0, linestyle="--",
+                alpha=0.6, zorder=2, label="y = x")
+        ax.set_xlim(lim_lo, lim_hi)
+        ax.set_ylim(lim_lo, lim_hi)
+
+    ax.set_title(title, fontsize=fontsize + 3, fontweight="bold", pad=5)
+    ax.set_xlabel("Theoretical Quantile", fontsize=fontsize)
+    ax.set_ylabel("Sample Quantile (z-scored)", fontsize=fontsize)
+    ax.tick_params(axis="both", labelsize=fontsize)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="upper left", fontsize=fontsize)
+
+    plt.tight_layout()
     return fig, ax
 
 
@@ -439,7 +1011,7 @@ def plot_tail_capture(strategy_returns: pd.DataFrame, benchmark_returns: pd.Seri
 
 
 def plot_capm(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series,
-              periods_per_year: int = 12,
+              periods_per_year: int = None,
               figsize=(3, 3), colors=None, title='Beta vs. Alpha',
               fontsize=7, markers=['o']):
     """High-level wrapper that calculates and plots CAPM Beta (x) vs Annualized Alpha (y).
@@ -449,7 +1021,8 @@ def plot_capm(strategy_returns: pd.DataFrame, benchmark_returns: pd.Series,
             should represent a distinct strategy or asset.
         benchmark_returns: Periodic returns of the benchmark.
         periods_per_year: Periods per year used to annualize alpha (e.g., 252
-            for daily, 12 for monthly). Defaults to 12.
+            for daily, 12 for monthly). Inferred from the returns' index when
+            None (the default).
         figsize: The dimensions (width, height) of the figure in inches.
         colors: Color palette or list of colors. If None, Seaborn's default
             palette is used.
