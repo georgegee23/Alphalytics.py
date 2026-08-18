@@ -86,14 +86,12 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = None) -> pd.Da
 # ==========================================
 
 def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_returns: pd.Series,
-    window: int = 36, periods_per_year: int = None) -> pd.DataFrame:
+    periods_per_year: int = None) -> pd.DataFrame:
     """Evaluates the relative consistency and active risk of one or multiple strategies.
 
     Args:
         strategy_returns: Periodic returns for the strategy/strategies.
         benchmark_returns: Periodic returns for the benchmark.
-        window: Unused. Retained so existing callers keep working; it fed the
-            "Rolling AR Std" column, which has been removed.
         periods_per_year: Annualization factor (252 for daily, 12 for monthly).
             Inferred from the index if None.
 

@@ -24,7 +24,7 @@ from .capm import compute_capm, beta, bull_bear_beta, rolling_beta
 from .relative import (
     active_return, active_risk, information_ratio,
     rolling_active_return, rolling_hit_rate, rolling_active_risk, rolling_information_ratio,
-    hit_rate, bull_hit_rate, bear_hit_rate,
+    hit_rate, bull_hit_rate, bear_hit_rate, skill_hit_rate,
     hit_rates,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio, tail_capture_ratio,
     up_capture, down_capture, capture_spread, capture_ratios,

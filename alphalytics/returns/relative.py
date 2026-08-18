@@ -71,6 +71,14 @@ def skill_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     `hit_rate` drifts upward in a sample dominated by rallies. Periods where
     the benchmark is exactly 0 are excluded from both regimes.
 
+    This is Youden's J statistic (Youden, 1950) applied to relative returns:
+    J = sensitivity + specificity − 1, treating "beats the benchmark" as the
+    test outcome and the benchmark's direction as the condition. J is the
+    standard measure of a binary classifier's ability to discriminate
+    independently of prevalence — here, independently of the market's up/down
+    mix — which is exactly the property that makes it a cleaner read on skill
+    than the raw hit rate.
+
     Args:
         strategy_returns: Periodic returns of the strategies (Series or DataFrame).
         benchmark_returns (pd.Series): Periodic returns of the benchmark.
@@ -99,7 +107,8 @@ def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     expressed as a decimal (e.g., 0.65 for 65%). Up/Down markets exclude periods where benchmark == 0.
 
     Skill Hit Rate (Bull + Bear − 1) weights both regimes equally, so it does not
-    drift with the up/down mix of the sample. See `skill_hit_rate`.
+    drift with the up/down mix of the sample. This is Youden's J statistic;
+    see `skill_hit_rate`.
 
     Args:
         returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
