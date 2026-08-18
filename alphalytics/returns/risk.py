@@ -506,6 +506,37 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
 # DRAWDOWNS TABLE
 # ==========================================
 
+def _pivot_comparison(comparison: dict, field: str, columns: pd.Index) -> pd.DataFrame:
+    """
+    Reshapes a `compare_drawdowns` result into a flat table for one field.
+
+    Args:
+        comparison: The dict returned by `compare_drawdowns`.
+        field:      Column of each sub-frame to extract (e.g. "Depth").
+        columns:    Strategy names, used to fix the column order and to give
+                    the table its shape when `comparison` is empty.
+
+    Returns:
+        A DataFrame with index "Date Range" ("peak to trough"), strategy
+        tickers as columns, and float values.
+    """
+    rows = {}
+    for peak_str, sub_df in comparison.items():
+        # Empty when `strategies` has no columns — nothing to pull out.
+        if sub_df.empty:
+            continue
+        trough_str = sub_df["Trough"].iloc[0]
+        rows[f"{peak_str} to {trough_str}"] = sub_df[field]
+
+    # `compare_drawdowns` builds its sub-frames from dicts mixing date strings
+    # with numbers, so the extracted column is object dtype — cast it back or
+    # .round()/.mean()/.style break downstream.
+    # Keys are ISO dates, so a lexicographic sort_index() is chronological.
+    table = pd.DataFrame(rows, index=columns).T.sort_index().astype(float)
+    table.index.name = "Date Range"
+    table.columns.name = "Ticker"
+    return table
+
 def drawdowns_table(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.Series,
     n: int = 5) -> pd.DataFrame:
     """
@@ -523,23 +554,14 @@ def drawdowns_table(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.Se
     Returns:
         A DataFrame with index "Date Range" formatted ``"YYYY-MM-DD to YYYY-MM-DD"``
         (peak to trough), strategy tickers as columns, and depth (negative
-        decimal, e.g. ``-0.36`` = 36% drawdown) as values. Sorted chronologically
-        by peak date. Empty DataFrame if the benchmark never went underwater.
+        decimal, e.g. ``-0.36`` = 36% drawdown) as float values. Sorted
+        chronologically by peak date. If the benchmark never went underwater,
+        a row-less DataFrame with the same columns and axis names.
     """
     comparison = compare_drawdowns(strategies, benchmark, n=n)
 
-    if not comparison:
-        return pd.DataFrame()
-
-    rows = {}
-    for peak_str, sub_df in comparison.items():
-        trough_str = sub_df["Trough"].iloc[0]
-        rows[f"{peak_str} to {trough_str}"] = sub_df["Depth"]
-
-    table = pd.DataFrame(rows).T.sort_index()
-    table.index.name = "Date Range"
-    table.columns.name = "Ticker"
-    return table
+    columns = (strategies.to_frame() if isinstance(strategies, pd.Series) else strategies).columns
+    return _pivot_comparison(comparison, "Depth", columns)
 
 # ==========================================
 # TIME TO RECOVERY TABLE
@@ -564,25 +586,16 @@ def time_to_recovery_table(strategies: Union[pd.Series, pd.DataFrame], benchmark
     Returns:
         A DataFrame with index "Date Range" formatted ``"YYYY-MM-DD to YYYY-MM-DD"``
         (peak to trough), strategy tickers as columns, and time to recovery
-        (in periods) as values. ``0`` means the strategy never went below
+        (in periods) as float values. ``0`` means the strategy never went below
         its pre-episode peak; ``NaN`` means it went underwater and has not
-        yet recovered. Sorted chronologically by peak date. Empty DataFrame
-        if the benchmark never went underwater.
+        yet recovered. Sorted chronologically by peak date. If the benchmark
+        never went underwater, a row-less DataFrame with the same columns and
+        axis names.
     """
     comparison = compare_drawdowns(strategies, benchmark, n=n)
 
-    if not comparison:
-        return pd.DataFrame()
-
-    rows = {}
-    for peak_str, sub_df in comparison.items():
-        trough_str = sub_df["Trough"].iloc[0]
-        rows[f"{peak_str} to {trough_str}"] = sub_df["Time to Recovery"]
-
-    table = pd.DataFrame(rows).T.sort_index()
-    table.index.name = "Date Range"
-    table.columns.name = "Ticker"
-    return table
+    columns = (strategies.to_frame() if isinstance(strategies, pd.Series) else strategies).columns
+    return _pivot_comparison(comparison, "Time to Recovery", columns)
 
 # ==========================================
 # AVERAGE DRAWDOWNS

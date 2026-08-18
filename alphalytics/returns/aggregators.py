@@ -3,8 +3,7 @@ import pandas as pd
 import numpy as np
 
 from .relative import (
-    hit_rate, bull_hit_rate, bear_hit_rate,
-    rolling_active_return, rolling_active_risk,
+    hit_rate, bull_hit_rate, bear_hit_rate, skill_hit_rate,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
     active_return, active_risk, information_ratio,
     up_capture, down_capture, tail_capture_ratio,
@@ -93,7 +92,8 @@ def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_r
     Args:
         strategy_returns: Periodic returns for the strategy/strategies.
         benchmark_returns: Periodic returns for the benchmark.
-        window: Rolling window size in periods for the active-return stability metric.
+        window: Unused. Retained so existing callers keep working; it fed the
+            "Rolling AR Std" column, which has been removed.
         periods_per_year: Annualization factor (252 for daily, 12 for monthly).
             Inferred from the index if None.
 
@@ -119,7 +119,7 @@ def evaluate_consistency(strategy_returns: pd.DataFrame | pd.Series, benchmark_r
             "Hit Rate": hit_rate(strat, benchmark_returns),
             "Bull Hit Rate": bull_hit_rate(strat, benchmark_returns),
             "Bear Hit Rate": bear_hit_rate(strat, benchmark_returns),
-            "Rolling AR Std": rolling_active_return(strat, benchmark_returns, window, periods_per_year).std(),
+            "Skill Hit Rate": skill_hit_rate(strat, benchmark_returns),
             "Act. Ret. (Ann.)": active_return(strat, benchmark_returns, periods_per_year),
             "TE (Ann.)": active_risk(strat, benchmark_returns, periods_per_year),
             "Info Ratio": information_ratio(strat, benchmark_returns, periods_per_year),

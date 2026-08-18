@@ -10,7 +10,7 @@ from alphalytics.returns.relative import (
     bear_hit_rate,
     win_loss_ratio,
     active_return,
-    tracking_error,
+    active_risk,
     information_ratio,
     rolling_information_ratio,
     hit_rates,
@@ -71,20 +71,20 @@ class TestActiveReturn:
         assert isinstance(result, pd.Series)
 
 
-class TestTrackingError:
+class TestActiveRisk:
     def test_basic(self, returns_df, benchmark_series):
-        result = tracking_error(returns_df["StratA"], benchmark_series)
+        result = active_risk(returns_df["StratA"], benchmark_series)
         assert isinstance(result, float)
         assert result >= 0
 
     def test_identical_returns_zero(self, benchmark_series):
-        result = tracking_error(benchmark_series, benchmark_series)
+        result = active_risk(benchmark_series, benchmark_series)
         assert result == 0.0
 
     def test_too_few_obs(self, monthly_index):
         single = pd.Series([0.01], index=monthly_index[:1])
         bench = pd.Series([0.02], index=monthly_index[:1])
-        result = tracking_error(single, bench)
+        result = active_risk(single, bench)
         assert np.isnan(result)
 
 
@@ -133,7 +133,9 @@ class TestCaptureRatios:
         assert isinstance(result, pd.DataFrame)
         assert "Up Capture" in result.columns
         assert "Down Capture" in result.columns
-        assert "Capture Spread" in result.columns
+        # "Overall Capture" is consumed by plot_capture_hit_rate — keep it named.
+        assert "Overall Capture" in result.columns
+        assert "Spread" in result.columns
 
     def test_no_down_market(self, returns_df, monthly_index):
         bench = pd.Series(0.01, index=monthly_index, name="up_only")

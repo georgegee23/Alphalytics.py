@@ -53,6 +53,35 @@ def bear_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
 
     return float((bear_excess > 0).mean())
 
+def skill_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
+    benchmark_returns: pd.Series) -> Union[float, pd.Series]:
+    """
+    Skill Hit Rate — outperformance consistency net of market direction.
+
+        Skill Hit Rate = Bull Hit Rate + Bear Hit Rate − 1
+
+    Ranges from −1 to +1. A strategy that beats the benchmark in every up
+    period and every down period scores +1; one that never beats it scores −1.
+    Zero means the two regimes cancel — the classic case is a high-beta fund
+    that wins whenever the benchmark rises (bull ≈ 1) and loses whenever it
+    falls (bear ≈ 0), netting to 0 despite a flattering overall hit rate.
+
+    Because each regime is weighted equally, the result is unaffected by how
+    many up versus down periods the sample happens to contain, whereas
+    `hit_rate` drifts upward in a sample dominated by rallies. Periods where
+    the benchmark is exactly 0 are excluded from both regimes.
+
+    Args:
+        strategy_returns: Periodic returns of the strategies (Series or DataFrame).
+        benchmark_returns (pd.Series): Periodic returns of the benchmark.
+
+    Returns:
+        float (Series input) or pd.Series (DataFrame input).
+        NaN if the sample contains no up periods or no down periods.
+    """
+    return (bull_hit_rate(strategy_returns, benchmark_returns)
+            + bear_hit_rate(strategy_returns, benchmark_returns) - 1)
+
 
 # ==========================================
 # HIT RATES (Vectorized)
@@ -69,12 +98,15 @@ def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     Hit Rate is the percentage of periods where the strategy outperformed the benchmark,
     expressed as a decimal (e.g., 0.65 for 65%). Up/Down markets exclude periods where benchmark == 0.
 
+    Skill Hit Rate (Bull + Bear − 1) weights both regimes equally, so it does not
+    drift with the up/down mix of the sample. See `skill_hit_rate`.
+
     Args:
         returns (pd.DataFrame): Periodic returns of the strategies (columns = strategy names).
         benchmark (pd.Series): Periodic returns of the benchmark.
 
     Returns:
-        pd.DataFrame: Summary table with the three hit rate metrics per strategy.
+        pd.DataFrame: Summary table with the four hit rate metrics per strategy.
     """
     # 1. Input validation
     if not isinstance(returns, pd.DataFrame):
@@ -88,12 +120,13 @@ def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     data = data.dropna(how="any")                 # drop row if ANY NaN present
 
     if data.empty:
-        # No overlapping data at all
+        # No overlapping data at all — same columns as the populated path
         return pd.DataFrame(
             {
                 "Hit Rate": np.nan,
-                "Up Market Hit Rate": np.nan,
-                "Down Market Hit Rate": np.nan,
+                "Bull Hit Rate": np.nan,
+                "Bear Hit Rate": np.nan,
+                "Skill Hit Rate": np.nan,
             },
             index=returns.columns,
         )
@@ -124,6 +157,7 @@ def hit_rates(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
             "Hit Rate": overall_avg,
             "Bull Hit Rate": up_avg,
             "Bear Hit Rate": down_avg,
+            "Skill Hit Rate": up_avg + down_avg - 1,
         }
     )
 
@@ -788,7 +822,7 @@ def rolling_capture_spread(strategy_returns: Union[pd.Series, pd.DataFrame], ben
 
 def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
     """
-    Calculates Up Capture, Down Capture, and Capture Spread for multiple strategies.
+    Calculates Up Capture, Down Capture, Overall Capture and Spread for multiple strategies.
 
     Args:
         returns (pd.DataFrame): Periodic returns of the strategies.
