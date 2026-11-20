@@ -15,7 +15,7 @@ from alphalytics.factors.turnover import (
     compute_quantile_turnover,
     compute_quantiles_turnover,
 )
-from alphalytics.factors.ic import cs_spearmanr, ts_spearmanr
+from alphalytics.factors.ic import cs_spearmanr, ts_spearmanr, factor_decay
 
 
 class TestToQuantiles:
@@ -37,6 +37,19 @@ class TestToQuantiles:
         with pytest.raises(ValueError):
             to_quantiles(factor_df, n_quantiles=3, axis=2)
 
+    def test_default_axis_is_cross_sectional(self):
+        idx = pd.date_range("2020-01-31", periods=3, freq="ME")
+        factors = pd.DataFrame({"A": [1.0, 3.0, 5.0], "B": [2.0, 4.0, 6.0]}, index=idx)
+        assert to_quantiles(factors, n_quantiles=2).equals(
+            to_quantiles(factors, n_quantiles=2, axis=1)
+        )
+
+    def test_collapsed_bins_are_nan(self):
+        idx = pd.date_range("2020-01-31", periods=1, freq="ME")
+        factors = pd.DataFrame([[1.0, 1.0, 1.0, 1.0]], index=idx, columns=list("ABCD"))
+        result = to_quantiles(factors, n_quantiles=4)
+        assert result.isna().all().all()
+
 
 class TestComputeQuantileReturns:
     def test_basic(self, factor_df, asset_returns):
@@ -44,6 +57,22 @@ class TestComputeQuantileReturns:
         result = compute_quantile_returns(quantiles, asset_returns)
         assert isinstance(result, pd.DataFrame)
         assert all(c.startswith("Q") for c in result.columns)
+
+    def test_assignments_are_lagged_one_period(self):
+        idx = pd.date_range("2020-01-31", periods=3, freq="ME")
+        quantiles = pd.DataFrame(
+            {"A": [1, 2, 1], "B": [2, 1, 2]},
+            index=idx,
+        )
+        returns = pd.DataFrame(
+            {"A": [100.0, 1.0, 2.0], "B": [100.0, 2.0, 1.0]},
+            index=idx,
+        )
+        result = compute_quantile_returns(quantiles, returns)
+        # Quantiles from t0 earn the returns at t1: Q1 -> A -> 1, Q2 -> B -> 2.
+        assert result.loc[idx[1], "Q1"] == pytest.approx(1.0)
+        assert result.loc[idx[1], "Q2"] == pytest.approx(2.0)
+        assert idx[0] not in result.index
 
     def test_mismatched_shape_raises(self, factor_df, monthly_index):
         quantiles = to_quantiles(factor_df, n_quantiles=3, axis=1)
@@ -89,6 +118,13 @@ class TestAutocorrelation:
         result = calculate_autocorrelation(short, lag=1)
         assert result.isna().all()
 
+    def test_lag_keeps_calendar_gaps(self, monthly_index):
+        values = [1.0, 2.0, np.nan, 4.0, 5.0]
+        frame = pd.DataFrame({"A": values}, index=monthly_index[:5])
+        result = calculate_autocorrelation(frame, lag=1)
+        assert result["A"] == pytest.approx(frame["A"].autocorr(lag=1))
+        assert result["A"] != pytest.approx(frame["A"].dropna().autocorr(lag=1))
+
     def test_factor_autocorr_range(self, factor_df):
         result = compute_factor_autocorr(factor_df, max_lag=5)
         assert isinstance(result, pd.Series)
@@ -101,6 +137,12 @@ class TestQuantileTurnover:
         result = compute_quantile_turnover(quantiles, target_quantile=1)
         assert isinstance(result, pd.Series)
         assert result.dropna().between(0, 1).all()
+
+    def test_entries_count(self):
+        book = pd.DataFrame({"A": [1, 1], "B": [2, 1], "C": [2, 1]})
+        result = compute_quantile_turnover(book, target_quantile=1)
+        assert pd.isna(result.iloc[0])
+        assert result.iloc[1] == pytest.approx(2 / 3)
 
     def test_zero_holdings_gives_nan(self, monthly_index):
         """When no assets are in target quantile, turnover should be NaN."""
@@ -129,3 +171,16 @@ class TestIC:
     def test_ts_spearmanr(self, factor_df, asset_returns):
         result = ts_spearmanr(factor_df, asset_returns)
         assert isinstance(result, pd.Series)
+
+    def test_factor_decay_is_forward(self):
+        idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+        rng = np.random.default_rng(0)
+        returns = pd.DataFrame(
+            rng.normal(0, 0.05, (len(idx), 6)),
+            index=idx,
+            columns=list("ABCDEF"),
+        )
+        # Known at t, equal to the return earned over the next period.
+        factor = returns.shift(-1)
+        decay = factor_decay(factor, returns, max_periods=1)
+        assert decay.loc[1, "IC"] == pytest.approx(1.0)

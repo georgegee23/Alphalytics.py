@@ -149,16 +149,21 @@ def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
 def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
     """Infer the number of periods per year from a DatetimeIndex.
 
+    Recognized median gaps are daily (252), weekly (52), biweekly (26),
+    monthly (12), quarterly (4), and annual (1). Anything else raises,
+    including sub-daily data and an index shorter than two dates.
+
     Args:
         index: The datetime index to analyze.
 
     Returns:
-        Estimated periods per year (252 for daily, 52 for weekly,
-        12 for monthly, 4 for quarterly, 1 for annual).
-    """
-    if len(index) < 2:
-        return 12  # default to monthly
+        Periods per year for a recognized sampling frequency.
 
+    Raises:
+        TypeError: If ``index`` is not a datetime index.
+        ValueError: If the index is shorter than two dates or the median
+            gap is not a recognized frequency.
+    """
     if not isinstance(index, pd.DatetimeIndex):
         # Reject numeric/positional indexes outright — pandas would otherwise
         # reinterpret integers as epoch-nanosecond timestamps and silently
@@ -178,18 +183,43 @@ def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
                 "periods_per_year explicitly (252 daily, 52 weekly, 12 monthly)."
             )
 
-    median_days = pd.Series(index).diff().dt.days.median()
+    if len(index) < 2:
+        raise ValueError(
+            "Cannot infer periods_per_year from an index shorter than two dates. "
+            "Pass periods_per_year explicitly."
+        )
 
+    median_days = pd.Series(index).diff().dt.days.median()
+    if pd.isna(median_days):
+        raise ValueError(
+            "Cannot infer periods_per_year: the index has no usable gaps. "
+            "Pass periods_per_year explicitly."
+        )
+
+    # Sub-daily gaps truncate to 0 days. Do not treat them as daily.
+    if median_days < 1:
+        raise ValueError(
+            f"Cannot infer periods_per_year from a sub-daily median gap "
+            f"({median_days:g} days). Pass periods_per_year explicitly."
+        )
     if median_days <= 3:
         return 252
-    elif median_days <= 8:
+    if 6 <= median_days <= 8:
         return 52
-    elif median_days <= 35:
+    if 13 <= median_days <= 16:
+        return 26
+    if 27 <= median_days <= 33:
         return 12
-    elif median_days <= 100:
+    if 85 <= median_days <= 95:
         return 4
-    else:
+    if 360 <= median_days <= 370:
         return 1
+
+    raise ValueError(
+        f"Cannot infer periods_per_year from a median gap of {median_days:g} days. "
+        "Pass periods_per_year explicitly "
+        "(252 daily, 52 weekly, 26 biweekly, 12 monthly, 4 quarterly, 1 annual)."
+    )
 
 
 __all__ = [

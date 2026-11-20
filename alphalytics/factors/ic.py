@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import wilcoxon, binomtest, t, ttest_1samp, skew, kurtosis
 
-from alphalytics.returns.metrics import cumgrowth
+from alphalytics.factors.utils import compute_forward_returns
 
 
 # ============== INFORMATION COEFFICIENT ANALYSIS ============== #
@@ -205,11 +205,10 @@ def factor_decay(factor: pd.DataFrame,
         DataFrame with lags as index and IC, T_PValue, WCX_PValue as columns.
 
     Note:
-        - Converts returns to prices using ``cumgrowth()``.
-        - For each lag, calculates returns over that period.
-        - Computes cross-sectional Spearman correlation between factor
-          and lagged returns.
-        - Tests statistical significance using t-test.
+        - At each lag, correlates the factor with the forward return over
+          that many periods (``compute_forward_returns``), not the trailing
+          return.
+        - Tests statistical significance using a t-test and a Wilcoxon test.
     """
     # Input validation
     if not isinstance(factor, pd.DataFrame):
@@ -221,26 +220,33 @@ def factor_decay(factor: pd.DataFrame,
     if step < 1:
         raise ValueError("step must be positive")
 
-    # Convert returns to prices
-    prices = cumgrowth(returns)
     decay_results = {}
 
-    # Calculate correlations for different lags
+    # Correlate today's factor with the return over the next `lag` periods.
     for lag in range(1, max_periods + 1, step):
-        # Get returns over lag period
-        rets = prices.pct_change(lag).dropna(how="all")
-
-        # Calculate cross-sectional correlations
-        ic_corrs = cs_spearmanr(factor.loc[rets.index], rets).dropna()
+        forward = compute_forward_returns(returns, lag)
+        ic_corrs = cs_spearmanr(factor.reindex(index=forward.index), forward).dropna()
 
         if len(ic_corrs) < 2:
             decay_results[lag] = (np.nan, np.nan, np.nan)
             continue
 
+        mean_ic_corrs = ic_corrs.mean()
+        # A constant IC has an infinite t-statistic. SciPy's t-test warns
+        # and loses precision instead of reporting that.
+        if ic_corrs.std(ddof=1) == 0:
+            rejects = (
+                (alternative == "greater" and mean_ic_corrs > 0)
+                or (alternative == "less" and mean_ic_corrs < 0)
+                or (alternative == "two-sided" and mean_ic_corrs != 0)
+            )
+            p_value = 0.0 if rejects else 1.0
+            decay_results[lag] = (mean_ic_corrs, p_value, p_value)
+            continue
+
         # Test statistical significance
         t_stat, t_pval = ttest_1samp(ic_corrs, popmean=0, alternative=alternative)
         w_stat, wilcoxon_pval = wilcoxon(ic_corrs, alternative=alternative, zero_method="wilcox")
-        mean_ic_corrs = ic_corrs.mean()
 
         decay_results[lag] = (mean_ic_corrs, t_pval, wilcoxon_pval)
 

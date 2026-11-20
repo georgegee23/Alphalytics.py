@@ -9,6 +9,7 @@ from alphalytics.returns.metrics import (
     return_ytd,
     ann_return,
     ann_return_common_si,
+    compounded_ann_return,
     cumgrowth,
     annualized_rolling_return,
 )
@@ -23,6 +24,11 @@ class TestReturnN:
     def test_insufficient_data(self, returns_df):
         result = return_n(returns_df, n=100)
         assert result.isna().all()
+
+    def test_non_positive_window_is_nan(self, returns_df):
+        result = return_n(returns_df, n=0)
+        assert result.isna().all()
+        assert list(result.index) == list(returns_df.columns)
 
 
 class TestReturnYTD:
@@ -49,6 +55,11 @@ class TestAnnReturn:
         with pytest.raises(ValueError):
             ann_return(returns_df, years=0)
 
+    def test_infers_monthly_frequency(self, returns_df):
+        inferred = ann_return(returns_df, years=1)
+        explicit = ann_return(returns_df, years=1, periods_per_year=12)
+        assert inferred.equals(explicit)
+
 
 class TestAnnReturnCommonSI:
     def test_basic(self, returns_df):
@@ -60,6 +71,24 @@ class TestAnnReturnCommonSI:
         short = pd.DataFrame({"A": [0.01] * 6}, index=monthly_index[:6])
         with pytest.raises(ValueError):
             ann_return_common_si(short, periods_per_year=12)
+
+    def test_infers_monthly_frequency(self, returns_df):
+        inferred = ann_return_common_si(returns_df)
+        explicit = ann_return_common_si(returns_df, periods_per_year=12)
+        assert inferred.equals(explicit)
+
+    def test_daily_default_is_not_monthly(self, daily_index):
+        rets = pd.DataFrame({"A": np.full(len(daily_index), 0.001)}, index=daily_index)
+        inferred = ann_return_common_si(rets).iloc[0]
+        as_monthly = ann_return_common_si(rets, periods_per_year=12).iloc[0]
+        assert inferred == pytest.approx(ann_return_common_si(rets, periods_per_year=252).iloc[0])
+        assert inferred != pytest.approx(as_monthly)
+
+
+class TestCompoundedAnnReturn:
+    def test_alternating_monthly(self, alternating_monthly_returns):
+        result = compounded_ann_return(alternating_monthly_returns, periods_per_year=12)
+        assert result == pytest.approx((1.08 ** 6) - 1)
 
 
 class TestCumgrowth:

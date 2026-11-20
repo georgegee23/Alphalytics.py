@@ -12,11 +12,18 @@ from alphalytics.utils import _infer_periods_per_year
 def return_n(rets: pd.DataFrame, n: int) -> pd.Series:
     """
     Calculates the cumulative trailing return over the last 'n' periods.
-    """
-    if len(rets) < n:
-        return pd.Series(np.nan, index=rets.columns)
 
-    ret_n = (rets.iloc[-n:] + 1).prod() - 1
+    A window shorter than one period is undefined (``iloc[-0:]`` would
+    otherwise compound the whole history) and returns NaN.
+    """
+    if n < 1 or len(rets) < n:
+        return pd.Series(np.nan, index=rets.columns, dtype=float)
+
+    window = rets.iloc[-n:]
+    ret_n = (window + 1).prod() - 1
+    # An empty product is 1, which would publish a 0% return for a column
+    # that has no finite observations in the window.
+    ret_n = ret_n.where(window.notna().any(), np.nan)
     ret_n.name = f"{n} Period"
     return ret_n
 
@@ -36,15 +43,21 @@ def return_ytd(rets: pd.DataFrame) -> pd.Series:
 
     # Calculate geometric return for that slice
     ytd_rets = (ytd_data + 1).prod() - 1
+    ytd_rets = ytd_rets.where(ytd_data.notna().any(), np.nan)
     ytd_rets.name = "YTD"
     return ytd_rets
 
-def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -> pd.Series:
+def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = None) -> pd.Series:
     """
     Calculates the annualized trailing return over a specific number of years.
+
+    ``periods_per_year`` is inferred from the index when omitted.
     """
     if years < 1:
         raise ValueError(f"years must be >= 1 to annualize, got {years}")
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(rets.index)
 
     n = years * periods_per_year
 
@@ -52,8 +65,11 @@ def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -
     if len(rets) < n:
         return pd.Series(np.nan, index=rets.columns)
 
-    # 1. Calculate cumulative return over the sliced last 'n' periods
-    n_ret = (rets.iloc[-n:] + 1).prod() - 1
+    # 1. Calculate cumulative return over the sliced last 'n' periods.
+    # A column with no finite return in the window is NaN, not 0%.
+    window = rets.iloc[-n:]
+    n_ret = (window + 1).prod() - 1
+    n_ret = n_ret.where(window.notna().any(), np.nan)
 
     # 2. Annualize the cumulative return
     ann_ret = (n_ret + 1) ** (1 / years) - 1
@@ -61,14 +77,20 @@ def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = 12) -
 
     return ann_ret
 
-def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.Series:
+def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = None) -> pd.Series:
     """
     Calculates the annualized Since Inception return over the COMMON period.
     Forces an apples-to-apples comparison by only evaluating dates where
     all strategies in the DataFrame have overlapping data.
+
+    ``periods_per_year`` is inferred from the index when omitted, using the
+    calendar before incomplete rows are dropped.
     """
     if rets.empty:
         return pd.Series(np.nan, index=rets.columns)
+
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(rets.index)
 
     # 1. Align data: Keep only dates where ALL columns have data
     aligned_rets = rets.dropna()
@@ -90,6 +112,45 @@ def ann_return_common_si(rets: pd.DataFrame, periods_per_year: int = 12) -> pd.S
 
     return si_ret
 
+
+def compounded_ann_return(returns: Union[pd.Series, pd.DataFrame],
+    periods_per_year: Optional[int] = None) -> Union[float, pd.Series]:
+    """Annualized compounded return over the whole sample.
+
+        R_ann = prod(1 + r) ** (periods_per_year / n) - 1
+
+    ``n`` is the count of finite returns in each column. NaNs are skipped
+    per column. A non-positive growth path (a return below -100%, or a
+    negative product) is NaN. A path that hits exactly -100% annualizes
+    to -1.
+
+    Args:
+        returns: Periodic simple returns.
+        periods_per_year: Annualization factor. Inferred from the index
+            when omitted.
+    """
+    if periods_per_year is None:
+        periods_per_year = _infer_periods_per_year(returns.index)
+    if periods_per_year <= 0:
+        raise ValueError(f"periods_per_year must be positive, got {periods_per_year}")
+
+    def _one(series: pd.Series):
+        r = series.dropna()
+        n = len(r)
+        if n == 0:
+            return np.nan
+        growth = float((1 + r).prod())
+        if growth < 0:
+            return np.nan
+        if growth == 0:
+            return -1.0
+        return float(growth ** (periods_per_year / n) - 1)
+
+    if isinstance(returns, pd.Series):
+        return _one(returns)
+    if not isinstance(returns, pd.DataFrame):
+        raise TypeError(f"returns must be a Series or DataFrame, got {type(returns).__name__}")
+    return returns.apply(_one, axis=0)
 
 
 def cumgrowth(returns: pd.DataFrame, init_value: float = 1.0) -> pd.DataFrame:

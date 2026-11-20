@@ -31,12 +31,18 @@ def bull_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     if isinstance(strategy_returns, pd.DataFrame):
         return strategy_returns.apply(lambda col: bull_hit_rate(col, benchmark_returns))
 
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bull_excess = strat[bench > 0] - bench[bench > 0]
+    pair = pd.concat(
+        [strategy_returns, benchmark_returns], axis=1, join="inner"
+    ).dropna()
+    if pair.empty:
+        return np.nan
 
-    if bull_excess.empty: return np.nan
+    strat, bench = pair.iloc[:, 0], pair.iloc[:, 1]
+    bull = bench > 0
+    if not bool(bull.any()):
+        return np.nan
 
-    return float((bull_excess > 0).mean())
+    return float((strat[bull] - bench[bull] > 0).mean())
 
 def bear_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:
@@ -46,12 +52,18 @@ def bear_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     if isinstance(strategy_returns, pd.DataFrame):
         return strategy_returns.apply(lambda col: bear_hit_rate(col, benchmark_returns))
 
-    strat, bench = strategy_returns.align(benchmark_returns, join='inner')
-    bear_excess = strat[bench < 0] - bench[bench < 0]
+    pair = pd.concat(
+        [strategy_returns, benchmark_returns], axis=1, join="inner"
+    ).dropna()
+    if pair.empty:
+        return np.nan
 
-    if bear_excess.empty: return np.nan
+    strat, bench = pair.iloc[:, 0], pair.iloc[:, 1]
+    bear = bench < 0
+    if not bool(bear.any()):
+        return np.nan
 
-    return float((bear_excess > 0).mean())
+    return float((strat[bear] - bench[bear] > 0).mean())
 
 def skill_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:
@@ -180,6 +192,9 @@ def rolling_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark
                             window: int) -> Union[pd.Series, pd.DataFrame]:
     """Rolling Hit Rate / Batting Average (proportion of periods with positive excess returns).
 
+    The window stays on the original calendar. A missing period is left out
+    of the proportion rather than counted as a miss.
+
     Args:
         strategy_returns: Periodic returns in decimal form (Series or DataFrame).
         benchmark_returns: Periodic returns for the benchmark in decimal form.
@@ -196,14 +211,14 @@ def rolling_hit_rate(strategy_returns: Union[pd.Series, pd.DataFrame], benchmark
 
     strat_df, bench = strat_df.align(benchmark_returns, join="inner", axis=0)
 
-    # Calculate period-by-period arithmetic excess return
-    excess = strat_df.sub(bench, axis=0).dropna()
+    # Keep the original calendar. A missing excess return is not a miss, and
+    # dropping it first would pull the next return into this window.
+    excess = strat_df.sub(bench, axis=0)
+    hits = (excess > 0).astype(float).mask(excess.isna())
 
-    # Create boolean mask of positive excess returns (True=1, False=0)
-    hits = (excess > 0).astype(int)
-
-    # Rolling mean of a binary mask yields the proportion of 1s (the hit rate)
-    result = hits.rolling(window=window).mean().dropna(how="all")
+    # Rolling mean of a binary mask yields the proportion of 1s (the hit rate).
+    # A window needs ``window`` finite observations.
+    result = hits.rolling(window=window, min_periods=window).mean().dropna(how="all")
 
     if result.shape[1] == 1 and isinstance(strategy_returns, pd.Series):
         return result.iloc[:, 0]
@@ -532,12 +547,14 @@ def rolling_active_return(strategy_returns: Union[pd.Series, pd.DataFrame], benc
         periods_per_year = _infer_periods_per_year(strat_df.index)
 
     if method == "arithmetic":
-        excess = strat_df.sub(bench, axis=0).dropna()
-        result = excess.rolling(window=window).mean() * periods_per_year
+        # Keep the original calendar. Dropping incomplete rows first would
+        # pull the next valid return into a window that still contains a gap.
+        excess = strat_df.sub(bench, axis=0)
+        result = excess.rolling(window=window, min_periods=window).mean() * periods_per_year
     elif method == "geometric":
         ann_factor = periods_per_year / window
-        rol_strat = np.exp(np.log1p(strat_df).rolling(window).sum()) ** ann_factor - 1
-        rol_bench = np.exp(np.log1p(bench).rolling(window).sum()) ** ann_factor - 1
+        rol_strat = np.exp(np.log1p(strat_df).rolling(window, min_periods=window).sum()) ** ann_factor - 1
+        rol_bench = np.exp(np.log1p(bench).rolling(window, min_periods=window).sum()) ** ann_factor - 1
         result = rol_strat.sub(rol_bench, axis=0)
     else:
         raise ValueError(f"method must be 'arithmetic' or 'geometric', got '{method}'")
@@ -640,9 +657,58 @@ def rolling_information_ratio(strategy_returns: Union[pd.Series, pd.DataFrame], 
 # CAPTURE RATIOS
 # ==========================================
 
+def _geometric_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series,
+    direction: str) -> Union[float, pd.Series]:
+    """Geometric capture of each strategy against the benchmark.
+
+    Each column is paired with the benchmark on its own dates. A missing
+    return in one strategy does not remove that date from the others.
+    A return at or below -100% makes the log-return undefined, so that
+    strategy's ratio is NaN.
+    """
+    scalar_input = isinstance(returns, pd.Series)
+    if scalar_input:
+        returns = returns.to_frame(name=returns.name or "Strategy")
+
+    ratios = {}
+    for col in returns.columns:
+        pair = pd.DataFrame({
+            "strategy": returns[col],
+            "benchmark": benchmark_returns,
+        }).dropna()
+        if direction == "down":
+            market = pair[pair["benchmark"] < 0]
+        else:
+            market = pair[pair["benchmark"] > 0]
+        n = len(market)
+        if n == 0:
+            ratios[col] = np.nan
+            continue
+
+        strat_r = market["strategy"]
+        bench_r = market["benchmark"]
+        if bool((strat_r <= -1).any() or (bench_r <= -1).any()):
+            ratios[col] = np.nan
+            continue
+
+        port_geo_avg = float(np.exp(np.log1p(strat_r).sum() / n) - 1)
+        bench_geo_avg = float(np.exp(np.log1p(bench_r).sum() / n) - 1)
+        if bench_geo_avg == 0:
+            ratios[col] = np.nan
+        else:
+            ratios[col] = port_geo_avg / bench_geo_avg
+
+    result = pd.Series(ratios, dtype=float)
+    return float(result.iloc[0]) if scalar_input else result
+
+
 def down_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series) -> Union[float, pd.Series]:
     """
     Calculates the Down Capture Ratio using the Geometric Mean method.
+
+    Each strategy is paired with the benchmark on that strategy's own
+    dates. A missing observation in one column does not remove the date
+    from the others. A return at or below -100% makes the ratio NaN.
 
     Args:
         returns: Periodic returns (e.g., monthly) of the strategies (Series or DataFrame).
@@ -651,36 +717,15 @@ def down_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.
     Returns:
         float or pd.Series: The ratios (e.g., 0.95 = 95%). Returns np.nan if no down markets occur.
     """
-    scalar_input = isinstance(returns, pd.Series)
-    if scalar_input:
-        returns = returns.to_frame(name=returns.name or "Strategy")
-
-    df = returns.copy()
-    df['bench'] = benchmark_returns
-    df = df.dropna()
-
-    down_market = df[df['bench'] < 0]
-    n = len(down_market)
-
-    if n == 0:
-        result = pd.Series(np.nan, index=returns.columns)
-        return float(result.iloc[0]) if scalar_input else result
-
-    # Geometric mean per-period return via log-returns: exp(mean(log(1+r))) - 1
-    port_geo_avg = np.exp(np.log1p(down_market[returns.columns]).sum(axis=0) / n) - 1
-    bench_geo_avg = np.exp(np.log1p(down_market['bench']).sum() / n) - 1
-
-    if bench_geo_avg == 0:
-        result = pd.Series(np.nan, index=returns.columns)
-        return float(result.iloc[0]) if scalar_input else result
-
-    ratio = port_geo_avg / bench_geo_avg
-
-    return float(ratio.iloc[0]) if scalar_input else ratio
+    return _geometric_capture(returns, benchmark_returns, "down")
 
 def up_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Series) -> Union[float, pd.Series]:
     """
     Calculates the Up Capture Ratio using the Geometric Mean method.
+
+    Each strategy is paired with the benchmark on that strategy's own
+    dates. A missing observation in one column does not remove the date
+    from the others. A return at or below -100% makes the ratio NaN.
 
     Args:
         returns: Periodic returns (e.g., monthly) of the strategies (Series or DataFrame).
@@ -689,32 +734,7 @@ def up_capture(returns: Union[pd.Series, pd.DataFrame], benchmark_returns: pd.Se
     Returns:
         float or pd.Series: The ratios (e.g., 1.05 = 105%). Returns np.nan if no up markets occur.
     """
-    scalar_input = isinstance(returns, pd.Series)
-    if scalar_input:
-        returns = returns.to_frame(name=returns.name or "Strategy")
-
-    df = returns.copy()
-    df['bench'] = benchmark_returns
-    df = df.dropna()
-
-    up_market = df[df['bench'] > 0]
-    n = len(up_market)
-
-    if n == 0:
-        result = pd.Series(np.nan, index=returns.columns)
-        return float(result.iloc[0]) if scalar_input else result
-
-    # Geometric mean per-period return via log-returns: exp(mean(log(1+r))) - 1
-    port_geo_avg = np.exp(np.log1p(up_market[returns.columns]).sum(axis=0) / n) - 1
-    bench_geo_avg = np.exp(np.log1p(up_market['bench']).sum() / n) - 1
-
-    if bench_geo_avg == 0:
-        result = pd.Series(np.nan, index=returns.columns)
-        return float(result.iloc[0]) if scalar_input else result
-
-    ratio = port_geo_avg / bench_geo_avg
-
-    return float(ratio.iloc[0]) if scalar_input else ratio
+    return _geometric_capture(returns, benchmark_returns, "up")
 
 def capture_spread(returns: Union[pd.Series, pd.DataFrame],
     benchmark_returns: pd.Series) -> Union[float, pd.Series]:

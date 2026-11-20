@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from typing import Union
 
+from .metrics import compounded_ann_return
 from .risk import downside_variance, upside_variance, max_drawdown, ulcer_index, cvar
 from .relative import omega_ratio
 from .capm import beta
@@ -113,7 +114,7 @@ def treynor_ratio(returns: Union[pd.Series, pd.DataFrame], benchmark: pd.Series,
 # ==========================================
 
 def sortino_ratio(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
-    periods_per_year: int = None, ddof: int = 1,
+    periods_per_year: int = None, ddof: int = 0,
     annualize: bool = True) -> Union[float, pd.Series]:
     """
     Sortino Ratio — mean excess return per unit of downside deviation.
@@ -126,7 +127,8 @@ def sortino_ratio(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
         mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
         periods_per_year (int): Annualization factor. Inferred from index if None.
             Ignored when ``annualize=False``.
-        ddof (int): Degrees of freedom for downside variance. Defaults to 1.
+        ddof (int): Degrees of freedom for downside variance. Defaults to 0,
+            so the Sortino denominator is the count of finite returns.
         annualize: If True (default), scale the per-period ratio by
             ``sqrt(periods_per_year)``. Set to False to return the raw
             per-period ratio.
@@ -165,7 +167,10 @@ def calmar_ratio(returns: Union[pd.Series, pd.DataFrame],
     periods_per_year: int = None) -> Union[float, pd.Series]:
 
     """
-    Calmar ratio — annualised return divided by maximum drawdown.
+    Calmar ratio — compounded annual return divided by the absolute maximum drawdown.
+
+    The numerator is `compounded_ann_return`, the compounded growth of the
+    sample raised to ``periods_per_year / n``.
 
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
@@ -178,7 +183,7 @@ def calmar_ratio(returns: Union[pd.Series, pd.DataFrame],
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
-    ann_ret = (1 + returns.mean()) ** periods_per_year - 1
+    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
     mdd = np.abs(max_drawdown(returns))
 
     if isinstance(mdd, pd.Series):
@@ -206,7 +211,9 @@ def martin_ratio(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
     rewards strategies that produce excess return without spending long
     stretches underwater. Compared to Calmar, which divides by max drawdown
     only, Martin penalises the full drawdown trajectory (depth × duration).
-    Returns and rfr are annualised geometrically, matching `calmar_ratio`.
+    The strategy return is the compounded sample return from
+    `compounded_ann_return`, matching `calmar_ratio`. A constant per-period
+    ``rfr`` is compounded as ``(1 + rfr) ** periods_per_year - 1``.
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         rfr: Risk-free rate per period. Defaults to 0.0.
@@ -219,7 +226,7 @@ def martin_ratio(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
-    ann_ret = (1 + returns.mean()) ** periods_per_year - 1
+    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
     ann_rfr = (1 + rfr) ** periods_per_year - 1
     ui = ulcer_index(returns)
 
@@ -282,7 +289,7 @@ def starr(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
-    ann_ret = (1 + returns.mean()) ** periods_per_year - 1
+    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
     ann_rfr = (1 + rfr) ** periods_per_year - 1
     return (ann_ret - ann_rfr) / (es_abs * np.sqrt(periods_per_year))
 
@@ -404,7 +411,7 @@ def pain_ratio(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Serie
 # ==========================================
 
 def deviation_ratio(returns: Union[pd.Series, pd.DataFrame],
-    mar: float = 0.0, ddof: int = 1) -> Union[float, pd.Series]:
+    mar: float = 0.0, ddof: int = 0) -> Union[float, pd.Series]:
     """
     Upside / Downside Deviation Ratio (UD/DD).
 
@@ -421,7 +428,7 @@ def deviation_ratio(returns: Union[pd.Series, pd.DataFrame],
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         mar: Minimum Acceptable Return threshold. Defaults to 0.0.
-        ddof (int): Degrees of freedom shared by both variances. Defaults to 1.
+        ddof (int): Degrees of freedom shared by both variances. Defaults to 0.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).

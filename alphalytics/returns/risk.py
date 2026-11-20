@@ -101,98 +101,95 @@ def vol_of_vol(returns: Union[pd.Series, pd.DataFrame], window: int,
         return np.nan
     return float(sigma_std / sigma_mean)
 
-def downside_variance(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0, ddof: int = 1) -> Union[float, pd.Series]:
+def _semi_variance(returns: Union[pd.Series, pd.DataFrame], mar: float, ddof: int,
+    side: str) -> Union[float, pd.Series]:
+    """Second moment of returns on one side of ``mar``.
+
+    The denominator is the count of finite returns in each column, minus
+    ``ddof``. Missing rows are not observations. ``side="down"`` zeros out
+    returns above ``mar``; ``side="up"`` zeros out returns below it.
+    """
+    if isinstance(returns, pd.Series):
+        frame = returns.to_frame()
+    elif isinstance(returns, pd.DataFrame):
+        frame = returns
+    else:
+        raise TypeError(f"returns must be a pd.Series or pd.DataFrame, got {type(returns).__name__}")
+
+    valid = frame.notna().sum()
+    centered = frame - mar
+    if side == "down":
+        deviations = centered.clip(upper=0)
+    else:
+        deviations = centered.clip(lower=0)
+
+    denom = (valid - ddof).where(valid > ddof)
+    result = (deviations ** 2).sum() / denom
+    return result.squeeze()
+
+
+def downside_variance(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0, ddof: int = 0) -> Union[float, pd.Series]:
     """
     Downside variance — volatility of returns below the MAR.
 
     Only penalizes returns that fall below the Minimum Acceptable Return (MAR).
-    The denominator is total observations (not just downside periods),
-    consistent with the Sortino ratio convention.
+    The denominator is the count of finite observations (not just downside
+    periods), which is the Sortino convention. The default ``ddof`` is 0,
+    so that denominator is ``n``.
 
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
-        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 0.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
-        NaN when observations are insufficient (n <= ddof or n == 0).
+        NaN when observations are insufficient (finite n <= ddof or n == 0).
     """
-    if isinstance(returns, pd.Series):
-        returns = returns.to_frame()
-
-    if not isinstance(returns, pd.DataFrame):
-        raise TypeError(f"returns must be a pd.Series or pd.DataFrame, got {type(returns).__name__}")
-
-    n_obs = len(returns)
-    insufficient_data = n_obs == 0 or n_obs <= ddof
-    if insufficient_data:
-        return pd.Series(np.nan, index=returns.columns)
-
-    # Clip positive deviations to 0 — only penalize returns below MAR
-    downside_deviations = (returns - mar).clip(upper=0)
-
-    result = (downside_deviations ** 2).sum() / (n_obs - ddof)
-    return result.squeeze()
+    return _semi_variance(returns, mar=mar, ddof=ddof, side="down")
 
 def ann_downside_deviation(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
-    ddof: int = 1, periods_per_year: int = None) -> Union[float, pd.Series]:
+    ddof: int = 0, periods_per_year: int = None) -> Union[float, pd.Series]:
     """
     Annualized downside deviation (square root of annualized downside variance).
 
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
-        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 0.
         periods_per_year (int, optional): Trading periods in a year. Inferred if None.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
-        NaN when observations are insufficient (n <= ddof or n == 0).
+        NaN when observations are insufficient (finite n <= ddof or n == 0).
     """
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
     return np.sqrt(downside_variance(returns, mar=mar, ddof=ddof) * periods_per_year)
 
-def upside_variance(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0, ddof: int = 1) -> Union[float, pd.Series]:
+def upside_variance(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0, ddof: int = 0) -> Union[float, pd.Series]:
     """
     Upside variance — volatility of returns above the MAR.
 
     Mirror of `downside_variance`. Only counts returns that exceed the
-    Minimum Acceptable Return (MAR). The denominator is total observations
-    (not just upside periods), matching the Sortino convention so the upside
-    and downside variances are directly comparable and sum components are
-    on the same scale as `var(returns, ddof=ddof)`.
+    Minimum Acceptable Return (MAR). The denominator is the count of finite
+    observations (not just upside periods), the same denominator as
+    `downside_variance`.
 
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
-        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 0.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
-        NaN when observations are insufficient (n <= ddof or n == 0).
+        NaN when observations are insufficient (finite n <= ddof or n == 0).
     """
-    if isinstance(returns, pd.Series):
-        returns = returns.to_frame()
-
-    if not isinstance(returns, pd.DataFrame):
-        raise TypeError(f"returns must be a pd.Series or pd.DataFrame, got {type(returns).__name__}")
-
-    n_obs = len(returns)
-    insufficient_data = n_obs == 0 or n_obs <= ddof
-    if insufficient_data:
-        return pd.Series(np.nan, index=returns.columns)
-
-    # Clip negative deviations to 0 — only count returns above MAR
-    upside_deviations = (returns - mar).clip(lower=0)
-
-    result = (upside_deviations ** 2).sum() / (n_obs - ddof)
-    return result.squeeze()
+    return _semi_variance(returns, mar=mar, ddof=ddof, side="up")
 
 def ann_upside_deviation(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
-    ddof: int = 1, periods_per_year: int = None) -> Union[float, pd.Series]:
+    ddof: int = 0, periods_per_year: int = None) -> Union[float, pd.Series]:
     """
     Annualized upside deviation (square root of annualized upside variance).
 
@@ -203,12 +200,12 @@ def ann_upside_deviation(returns: Union[pd.Series, pd.DataFrame], mar: float = 0
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         mar (float): Minimum Acceptable Return threshold. Defaults to 0.0.
-        ddof (int): Degrees of freedom for the variance denominator. Defaults to 1.
+        ddof (int): Degrees of freedom for the variance denominator. Defaults to 0.
         periods_per_year (int, optional): Trading periods in a year. Inferred if None.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
-        NaN when observations are insufficient (n <= ddof or n == 0).
+        NaN when observations are insufficient (finite n <= ddof or n == 0).
     """
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
@@ -256,33 +253,124 @@ def variance_ratio(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0, dd
 # DRAWDOWNS
 # ==========================================
 
+def _series_drawdowns(returns: pd.Series) -> pd.Series:
+    """Drawdown path for one series, anchored at starting wealth of 1.
+
+    A gap in this series is skipped in its own wealth path and comes back
+    as NaN. It does not affect any other series.
+    """
+    out = pd.Series(np.nan, index=returns.index, dtype=float, name=returns.name)
+    clean = returns.dropna()
+    if clean.empty:
+        return out
+
+    wealth = (1 + clean).cumprod()
+    peaks = np.maximum(wealth.cummax().to_numpy(), 1.0)
+    drawdowns = pd.Series(wealth.to_numpy() / peaks - 1.0, index=clean.index)
+    # A new high is exactly zero. Tiny positives are floating-point noise.
+    drawdowns = drawdowns.mask(drawdowns > 0, 0.0)
+    out.loc[drawdowns.index] = drawdowns
+    return out
+
+
 def to_drawdowns(returns: Union[pd.Series, pd.DataFrame]) -> Union[pd.Series, pd.DataFrame]:
     """
     Calculates the historical drawdowns from a series of financial returns.
-    
+
+    Wealth starts at 1 before the first return, so a loss in the opening
+    period is a drawdown from invested capital. Each column is computed
+    on its own: a missing return in one column does not remove that date
+    from the others.
+
     Args:
         returns: A pandas Series (single asset) or DataFrame (multiple assets) of returns.
                  (e.g., 0.05 for 5%, -0.02 for -2%).
-        
+
     Returns:
         A pandas Series or DataFrame of drawdowns (expressed as negative decimals).
     """
-    if not isinstance(returns, (pd.Series, pd.DataFrame)):
-        raise TypeError("Input must be a pandas Series or DataFrame.")
-    
-    # 1. Convert returns to a wealth index (cumulative growth)
-    # We drop NAs first so the cumprod() doesn't propagate NaNs incorrectly
-    clean_returns = returns.dropna()
-    wealth_index = (1 + clean_returns).cumprod()
-    
-    # 2. Track the historical maximum (running peak)
-    previous_peaks = wealth_index.cummax()
-    
-    # 3. Calculate the drawdown percentage
-    drawdowns = (wealth_index - previous_peaks) / previous_peaks
-    
-    # Realign with the original index in case there were leading NaNs
-    return drawdowns.reindex(returns.index)
+    if isinstance(returns, pd.Series):
+        return _series_drawdowns(returns)
+    if isinstance(returns, pd.DataFrame):
+        return pd.DataFrame({col: _series_drawdowns(returns[col]) for col in returns.columns})
+    raise TypeError("Input must be a pandas Series or DataFrame.")
+
+
+def _index_pos(index: pd.Index, label) -> int:
+    loc = index.get_loc(label)
+    if isinstance(loc, slice):
+        return int(loc.start)
+    if isinstance(loc, np.ndarray):
+        return int(np.flatnonzero(loc)[0])
+    return int(loc)
+
+
+def _episode_bounds(drawdowns: pd.Series) -> list:
+    """Underwater episodes on an anchored drawdown path.
+
+    ``inception`` is True when the episode begins before the first return,
+    so there is no in-sample date with drawdown zero ahead of it. The
+    peak date is then the first underwater timestamp, and that period's
+    return belongs to the episode.
+
+    Missing observations are dropped before the runs are formed. A gap
+    inside a decline is not a recovery and does not start a second episode.
+    """
+    observed = drawdowns.dropna()
+    under = observed.lt(0)
+    if not bool(under.any()):
+        return []
+
+    run_id = under.ne(under.shift(fill_value=False)).cumsum()
+    episodes = []
+    for _, group in observed[under].groupby(run_id[under]):
+        start = group.index[0]
+        end = group.index[-1]
+        start_pos = _index_pos(observed.index, start)
+        prior = observed.iloc[:start_pos].eq(0)
+        if bool(prior.any()):
+            peak_date = prior[prior].index[-1]
+            inception = False
+        else:
+            peak_date = start
+            inception = True
+
+        end_pos = _index_pos(observed.index, end)
+        after = observed.iloc[end_pos + 1:]
+        recovered = after[after.eq(0)]
+        if len(recovered):
+            recovery_date = recovered.index[0]
+            status = "Recovered"
+        else:
+            recovery_date = pd.NaT
+            status = "Ongoing"
+
+        episodes.append({
+            "peak_date": peak_date,
+            "trough_date": group.idxmin(),
+            "depth": float(group.min()),
+            "inception": inception,
+            "recovery_date": recovery_date,
+            "status": status,
+        })
+    return episodes
+
+
+def _window_returns(returns: pd.Series, peak_date, end_date, inception: bool) -> pd.Series:
+    """Returns that belong to an episode, through ``end_date`` inclusive.
+
+    When the peak is an in-sample high, the return on the peak date is
+    excluded. When the peak is starting capital, the first return is included.
+    """
+    if len(returns.dropna()) == 0:
+        return returns.dropna()
+    if pd.isna(end_date):
+        end_date = returns.dropna().index[-1]
+    if inception:
+        window = returns.loc[:end_date]
+    else:
+        window = returns.loc[(returns.index > peak_date) & (returns.index <= end_date)]
+    return window.dropna()
 
 # ==========================================
 # MAX DRAWDOWN
@@ -296,16 +384,17 @@ def max_drawdown(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Ser
 # TOP DRAWDOWN
 # ==========================================
 
-def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -> pd.DataFrame:
+def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = None) -> pd.DataFrame:
     """
-    Identifies the top N worst drawdowns for a single asset, including dates, duration, 
+    Identifies the top N worst drawdowns for a single asset, including dates, duration,
     and the annualized volatility experienced during the drawdown.
-    
+
     Args:
         returns: A single pandas Series of returns.
         n: The number of top drawdowns to return.
-        periods_per_year: Used to annualize the volatility (252 for daily, 12 for monthly).
-        
+        periods_per_year: Used to annualize the volatility. Inferred from the
+            index when omitted.
+
     Returns:
         A pandas DataFrame detailing the worst drawdown periods.
     """
@@ -315,61 +404,38 @@ def top_drawdowns(returns: pd.Series, n: int = 5, periods_per_year: int = 252) -
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(returns.index)
 
-    # 1. Call the core function to get the drawdown timeseries
     drawdowns = to_drawdowns(returns)
-    is_zero = drawdowns == 0
-    period_id = is_zero.cumsum()
-    underwater = drawdowns[drawdowns < 0]
-
-    if underwater.empty:
+    episodes = _episode_bounds(drawdowns)
+    if not episodes:
         return pd.DataFrame()
 
-    groups = underwater.groupby(period_id[underwater.index])
-
+    last_valid = drawdowns.dropna().index[-1]
     results = []
-    for _, group in groups:
-        trough_date = group.idxmin()
-        depth = group.min()
-
-        prior_zeros = is_zero[:group.index[0]]
-        peak_date = prior_zeros[prior_zeros].index[-1]
-
-        post_group_zeros = is_zero[group.index[-1]:]
-        recovery_dates = post_group_zeros[post_group_zeros].index
-
-        if len(recovery_dates) > 0:
-            recovery_date = recovery_dates[0]
-            duration = len(returns.loc[peak_date:recovery_date]) - 1
-            status = "Recovered"
-        else:
-            recovery_date = pd.NaT
-            last_valid_date = drawdowns.dropna().index[-1]
-            duration = len(returns.loc[peak_date:last_valid_date]) - 1
-            status = "Ongoing"
-
-        # Volatility during the drawdown (underwater periods only)
-        period_returns = returns.loc[group.index[0]:group.index[-1]]
-
-        if len(period_returns) < 2:
+    for episode in episodes:
+        peak_date = episode["peak_date"]
+        trough_date = episode["trough_date"]
+        recovery_date = episode["recovery_date"]
+        duration_end = recovery_date if pd.notna(recovery_date) else last_valid
+        duration = len(_window_returns(returns, peak_date, duration_end, episode["inception"]))
+        vol_returns = _window_returns(returns, peak_date, trough_date, episode["inception"])
+        if len(vol_returns) < 2:
             period_volatility = np.nan
         else:
-            period_volatility = period_returns.std() * np.sqrt(periods_per_year)
-            
+            period_volatility = vol_returns.std(ddof=1) * np.sqrt(periods_per_year)
+
         results.append({
             "Peak": peak_date.strftime('%Y-%m-%d'),
             "Trough": trough_date.strftime('%Y-%m-%d'),
             "Recovery": recovery_date.strftime('%Y-%m-%d') if pd.notna(recovery_date) else "N/A",
-            "Depth": depth,
+            "Depth": episode["depth"],
             "Duration": duration,
-            "Volatility (Ann)": period_volatility, # New Column
-            "Status": status
+            "Volatility (Ann)": period_volatility,
+            "Status": episode["status"],
         })
-        
-    # Compile, sort by the worst depth, and grab the top N
+
     df = pd.DataFrame(results)
     df = df.sort_values(by="Depth", ascending=True).head(n)
     df.reset_index(drop=True, inplace=True)
-    
     return df
 
 # ==========================================
@@ -393,18 +459,18 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
                 - Peak / Trough:     Benchmark period boundary dates.
                 - Depth:             Worst drawdown experienced during the window.
                 - Volatility (Ann):  Annualised std of returns during the window.
-                - Time to Trough:    Periods from peak_date to the strategy's own
-                                     wealth low within [peak_date, trough_date]
-                                     (need not align with the benchmark trough).
-                - Time to Recovery:  Periods from peak_date until the strategy's
-                                     wealth returns to its pre-episode peak
-                                     (level at peak_date), searched strictly
-                                     after the benchmark's trough so all
-                                     strategies are compared on the same
-                                     reference point. NaN if it never recovers.
-                - Periods Underwater:   Count of periods within [peak_date, trough_date]
-                                     where strategy wealth is below the pre-episode
-                                     peak.
+                - Time to Trough:    Periods from the peak until the strategy's own
+                                     wealth low inside the benchmark's peak-to-trough
+                                     window (need not align with the benchmark trough).
+                - Time to Recovery:  Periods from the peak until the strategy's
+                                     wealth returns to its pre-episode peak.
+                                     The search includes dates inside the benchmark
+                                     episode. ``0`` if the strategy never trades
+                                     below that peak. NaN if it went below and has
+                                     not recovered by the end of the sample.
+                - Periods Underwater: Count of periods from the peak through the
+                                     benchmark trough where strategy wealth is
+                                     below the pre-episode peak.
     """
     if not isinstance(benchmark, pd.Series):
         raise TypeError("benchmark must be a pd.Series.")
@@ -415,77 +481,56 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(benchmark.index)
 
-    # --- Identify benchmark drawdown periods ---
-    bench_dd = to_drawdowns(benchmark)
-    is_zero = bench_dd == 0
-    period_id = is_zero.cumsum()
-    underwater = bench_dd[bench_dd < 0]
-
-    if underwater.empty:
+    episodes = _episode_bounds(to_drawdowns(benchmark))
+    if not episodes:
         return {}
 
-    groups = underwater.groupby(period_id[underwater.index])
-
-    periods = []
-    for _, group in groups:
-        prior_zeros = is_zero[:group.index[0]]
-        peak_date = prior_zeros[prior_zeros].index[-1]
-        trough_date = group.idxmin()
-        depth = group.min()
-        periods.append((depth, peak_date, trough_date))
-
-    periods.sort(key=lambda x: x[0])
-    periods = periods[:n]
+    episodes = sorted(episodes, key=lambda episode: episode["depth"])[:n]
 
     result = {}
-    for _, peak_date, trough_date in periods:
+    for episode in episodes:
+        peak_date = episode["peak_date"]
+        trough_date = episode["trough_date"]
+        inception = episode["inception"]
 
         rows = {}
         for col in strategies.columns:
             strat = strategies[col]
+            post = strat.dropna()
+            if not inception:
+                post = post[post.index > peak_date]
+            episode_returns = post.loc[:trough_date] if len(post) else post
 
-            # --- Depth: worst drawdown during the window ---
-            period_ret = strat.loc[peak_date:trough_date].dropna()
-            period_wealth = (1 + period_ret).cumprod()
-            period_peak = period_wealth.cummax()
-            period_dd = (period_wealth - period_peak) / period_peak
-            strat_depth = period_dd.min() if len(period_dd) > 0 else np.nan
-
-            # --- Volatility (annualised) ---
-            if len(period_ret) > 1:
-                vol = period_ret.iloc[1:].std() * np.sqrt(periods_per_year)
-            else:
+            if len(episode_returns) == 0:
+                strat_depth = np.nan
                 vol = np.nan
-
-            # --- Time to trough / recovery / days underwater ---
-            # Reference = strategy wealth at peak_date (pre-episode peak = 1.0).
-            # Returns AFTER peak_date drive the wealth path; the return ON
-            # peak_date is excluded since it's what brought us to the peak.
-            strat_clean = strat.dropna()
-            post_peak = strat_clean[strat_clean.index > peak_date]
+            else:
+                strat_depth = float(to_drawdowns(episode_returns).min())
+                if len(episode_returns) > 1:
+                    vol = float(episode_returns.std(ddof=1) * np.sqrt(periods_per_year))
+                else:
+                    vol = np.nan
 
             time_to_trough = np.nan
             time_to_recovery = np.nan
             periods_underwater = 0
 
-            if len(post_peak) > 0:
-                wealth_after = (1 + post_peak).cumprod()
-
-                # Episode portion (strictly after peak, through trough_date)
-                wealth_episode = wealth_after.loc[:trough_date]
+            if len(post) > 0:
+                wealth = (1 + post).cumprod()
+                wealth_episode = wealth.loc[:trough_date]
                 if len(wealth_episode) > 0:
                     strat_trough_date = wealth_episode.idxmin()
-                    time_to_trough = wealth_after.index.get_loc(strat_trough_date) + 1
+                    time_to_trough = _index_pos(wealth.index, strat_trough_date) + 1
                     periods_underwater = int((wealth_episode < 1.0).sum())
 
-                # Recovery: search strictly AFTER the benchmark's trough so all
-                # strategies are compared against the same reference point.
-                post_bench_trough = wealth_after[wealth_after.index > trough_date]
-                if len(post_bench_trough) > 0:
-                    recovered = post_bench_trough[post_bench_trough >= 1.0]
+                if not bool((wealth < 1.0).any()):
+                    time_to_recovery = 0.0
+                else:
+                    breach = wealth[wealth < 1.0].index[0]
+                    recovered = wealth.loc[breach:]
+                    recovered = recovered[recovered >= 1.0]
                     if len(recovered) > 0:
-                        recovery_date = recovered.index[0]
-                        time_to_recovery = wealth_after.index.get_loc(recovery_date) + 1
+                        time_to_recovery = _index_pos(wealth.index, recovered.index[0]) + 1
 
             rows[col] = {
                 "Peak": peak_date.strftime('%Y-%m-%d'),

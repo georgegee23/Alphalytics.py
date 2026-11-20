@@ -76,6 +76,51 @@ def factor_df(monthly_index):
 
 
 @pytest.fixture
+def opening_loss_returns():
+    """-50%, +10%, -10%. Anchored max drawdown is -50.5%."""
+    idx = pd.date_range("2020-01-31", periods=3, freq="ME")
+    return pd.Series([-0.50, 0.10, -0.10], index=idx, name="OpenLoss")
+
+
+@pytest.fixture
+def alternating_monthly_returns():
+    """24 months of +20%, -10%. Compounded annual return is 1.08**6 - 1."""
+    idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+    return pd.Series([0.20, -0.10] * 12, index=idx, name="Alternate")
+
+
+@pytest.fixture
+def gapped_downside_returns():
+    """One missing row. Downside variance at ddof=0 is 0.000325."""
+    idx = pd.date_range("2020-01-31", periods=5, freq="ME")
+    return pd.Series([0.01, np.nan, -0.02, -0.03, 0.01], index=idx, name="Gapped")
+
+
+@pytest.fixture
+def beta_gap_returns():
+    """Strategy with one gap. Beta against beta_gap_benchmark is 1.4."""
+    idx = pd.date_range("2020-01-31", periods=5, freq="ME")
+    return pd.DataFrame({"A": [0.02, np.nan, -0.02, 0.04, 0.01]}, index=idx)
+
+
+@pytest.fixture
+def beta_gap_benchmark(beta_gap_returns):
+    return pd.Series([0.01, 0.02, -0.01, 0.03, 0.00], index=beta_gap_returns.index, name="Bench")
+
+
+@pytest.fixture
+def bull_gap_strategy():
+    """Beats the benchmark in every valid up month. One up month is missing."""
+    idx = pd.date_range("2020-01-31", periods=4, freq="ME")
+    return pd.Series([0.02, np.nan, 0.03, 0.01], index=idx, name="BullGap")
+
+
+@pytest.fixture
+def bull_gap_benchmark(bull_gap_strategy):
+    return pd.Series([0.01, 0.01, 0.01, -0.02], index=bull_gap_strategy.index, name="Bench")
+
+
+@pytest.fixture
 def asset_returns(monthly_index):
     """Asset-level returns matching factor_df shape."""
     rng = np.random.default_rng(456)

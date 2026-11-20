@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alphalytics.plotting.performance import plot_capture_hit_rate
+from alphalytics.plotting.performance import plot_capture_hit_rate, plot_risk_return, plot_sortino
+from alphalytics.returns.ratios import sharpe_ratio, sortino_ratio
 
 
 @pytest.fixture
@@ -78,3 +79,26 @@ class TestPlotCaptureHitRate:
         m = {"Fund A": "o", "Fund B": "s", "Fund C": "D"}
         fig, ax = plot_capture_hit_rate(strategy_returns, benchmark_returns, markers=m)
         plt.close(fig)
+
+
+class TestRiskReturnSlope:
+    def test_slope_matches_sharpe(self, strategy_returns):
+        fig, ax = plot_risk_return(strategy_returns, periods_per_year=252)
+        try:
+            for i, col in enumerate(strategy_returns.columns):
+                x, y = ax.collections[i].get_offsets()[0]
+                expected = sharpe_ratio(strategy_returns[col], periods_per_year=252)
+                assert y / x == pytest.approx(expected)
+        finally:
+            plt.close(fig)
+
+    def test_sortino_slope_uses_excess_over_mar(self, strategy_returns):
+        mar = 0.001
+        fig, ax = plot_sortino(strategy_returns, mar=mar, periods_per_year=252)
+        try:
+            for i, col in enumerate(strategy_returns.columns):
+                x, y = ax.collections[i].get_offsets()[0]
+                expected = float(sortino_ratio(strategy_returns[col], mar=mar, periods_per_year=252))
+                assert y / x == pytest.approx(expected)
+        finally:
+            plt.close(fig)

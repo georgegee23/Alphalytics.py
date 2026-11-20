@@ -10,6 +10,8 @@ from alphalytics.returns.risk import (
     to_drawdowns,
     max_drawdown,
     top_drawdowns,
+    compare_drawdowns,
+    time_to_recovery_table,
     average_drawdown,
     average_drawdown_duration,
 )
@@ -38,7 +40,7 @@ class TestDownsideVariance:
 
     def test_single_obs_returns_nan(self, monthly_index):
         single = pd.Series([0.01], index=monthly_index[:1])
-        result = downside_variance(single)
+        result = downside_variance(single, ddof=1)
         if isinstance(result, pd.Series):
             assert result.isna().all()
         else:
@@ -47,6 +49,10 @@ class TestDownsideVariance:
     def test_series_input(self, returns_df):
         result = downside_variance(returns_df["StratA"])
         assert isinstance(result, (float, np.floating))
+
+    def test_gap_uses_finite_count(self, gapped_downside_returns):
+        result = downside_variance(gapped_downside_returns, ddof=0)
+        assert result == pytest.approx(0.000325)
 
 
 class TestDrawdowns:
@@ -74,6 +80,61 @@ class TestDrawdowns:
     def test_top_drawdowns_requires_series(self, returns_df):
         with pytest.raises(TypeError):
             top_drawdowns(returns_df, n=3)
+
+    def test_opening_loss_is_a_drawdown(self, opening_loss_returns):
+        assert max_drawdown(opening_loss_returns) == pytest.approx(-0.505)
+        episodes = top_drawdowns(opening_loss_returns, n=1, periods_per_year=12)
+        assert episodes.loc[0, "Depth"] == pytest.approx(-0.505)
+
+    def test_internal_gap_is_one_episode(self):
+        idx = pd.date_range("2020-01-31", periods=5, freq="ME")
+        series = pd.Series([0.10, -0.20, np.nan, -0.10, 0.50], index=idx)
+        episodes = top_drawdowns(series, n=5, periods_per_year=12)
+        assert len(episodes) == 1
+        assert episodes.loc[0, "Depth"] == pytest.approx(-0.28)
+        assert episodes.loc[0, "Peak"] == idx[0].strftime("%Y-%m-%d")
+        assert episodes.loc[0, "Trough"] == idx[3].strftime("%Y-%m-%d")
+
+    def test_top_drawdowns_infers_monthly_frequency(self):
+        idx = pd.date_range("2020-01-31", periods=4, freq="ME")
+        series = pd.Series([0.0, -0.10, -0.20, 0.40], index=idx)
+        inferred = top_drawdowns(series, n=1)
+        monthly = top_drawdowns(series, n=1, periods_per_year=12)
+        daily = top_drawdowns(series, n=1, periods_per_year=252)
+        assert inferred.loc[0, "Volatility (Ann)"] == pytest.approx(monthly.loc[0, "Volatility (Ann)"])
+        assert inferred.loc[0, "Volatility (Ann)"] != pytest.approx(daily.loc[0, "Volatility (Ann)"])
+
+    def test_drawdown_columns_are_independent(self):
+        idx = pd.date_range("2020-01-31", periods=4, freq="ME")
+        frame = pd.DataFrame({
+            "A": [-0.5, 0.1, -0.1, 0.2],
+            "B": [-0.5, np.nan, -0.1, 0.2],
+        }, index=idx)
+        alone = to_drawdowns(frame["A"])
+        assert np.allclose(to_drawdowns(frame)["A"], alone, equal_nan=True)
+
+
+class TestRecovery:
+    def _benchmark(self):
+        idx = pd.date_range("2020-01-31", periods=6, freq="ME")
+        bench = pd.Series([0.0, -0.30, -0.10, 0.05, 0.80, 0.01], index=idx, name="Bench")
+        return idx, bench
+
+    def test_never_underwater_is_zero(self):
+        idx, bench = self._benchmark()
+        strat = pd.Series([0.01] * len(idx), index=idx, name="Up")
+        table = time_to_recovery_table(strat, bench, n=1)
+        assert table.iloc[0, 0] == pytest.approx(0.0)
+
+    def test_recovery_before_benchmark_trough(self):
+        idx, bench = self._benchmark()
+        strat = pd.Series([0.0, -0.05, 0.10, 0.02, 0.02, 0.01], index=idx, name="Early")
+        table = time_to_recovery_table(strat, bench, n=1)
+        # Feb is the breach (period 1) and March is back above the peak (period 2).
+        assert table.iloc[0, 0] == pytest.approx(2.0)
+        comparison = compare_drawdowns(strat, bench, n=1, periods_per_year=12)
+        depth = next(iter(comparison.values()))["Depth"].iloc[0]
+        assert depth == pytest.approx(-0.05)
 
 
 class TestAverageDrawdown:

@@ -53,7 +53,7 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Se
     gs = fig.add_gridspec(4, 3, height_ratios=[0.75, 0.75, 0.75, 2])  # 2 rows for 2x3 + 1 row for full plot
 
     ax1 = fig.add_subplot(gs[0, 0])
-    qs.stats.cagr(quantile_returns).plot.bar(ax=ax1, title="Annualized Return", width=0.8, fontsize=font_size)
+    qs.stats.cagr(quantile_returns, periods=periods_per_year).plot.bar(ax=ax1, title="Annualized Return", width=0.8, fontsize=font_size)
     ax1.yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
     ax1.set_xticklabels(ax1.get_xticklabels(), rotation=0)
 
@@ -63,7 +63,7 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Se
     ax2.set_xticklabels(ax2.get_xticklabels(), rotation=0)
 
     ax3 = fig.add_subplot(gs[0, 2])
-    qs.stats.sharpe(quantile_returns).plot.bar(ax=ax3, title="Sharpe Ratio", width=0.8, fontsize=font_size)
+    qs.stats.sharpe(quantile_returns, periods=periods_per_year).plot.bar(ax=ax3, title="Sharpe Ratio", width=0.8, fontsize=font_size)
     ax3.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:.1f}"))
     ax3.set_xticklabels(ax3.get_xticklabels(), rotation=0)
 
@@ -81,12 +81,12 @@ def plot_quantiles_risk_metrics(quantile_returns: pd.DataFrame, benchmark: pd.Se
     ax6.set_xticklabels(ax6.get_xticklabels(), rotation=0)
 
     ax7 = fig.add_subplot(gs[2, 0])
-    qs.stats.sortino(quantile_returns).plot.bar(ax=ax7, title="Sortino Ratio", width=0.8, fontsize=font_size)
+    qs.stats.sortino(quantile_returns, periods=periods_per_year).plot.bar(ax=ax7, title="Sortino Ratio", width=0.8, fontsize=font_size)
     ax7.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:.1f}"))
     ax7.set_xticklabels(ax7.get_xticklabels(), rotation=0)
 
     ax8 = fig.add_subplot(gs[2, 1])
-    qs.stats.calmar(quantile_returns).plot.bar(ax=ax8, title="Calmar Ratio", width=0.8, fontsize=font_size)
+    qs.stats.calmar(quantile_returns, periods=periods_per_year).plot.bar(ax=ax8, title="Calmar Ratio", width=0.8, fontsize=font_size)
     ax8.yaxis.set_major_formatter(mtick.StrMethodFormatter("{x:.1f}"))
     ax8.set_xticklabels(ax8.get_xticklabels(), rotation=0)
 

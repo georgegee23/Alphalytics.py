@@ -30,6 +30,10 @@ class TestBeta:
         result = beta(rets, bench)
         assert result.isna().all()
 
+    def test_gap_uses_pairwise_sample(self, beta_gap_returns, beta_gap_benchmark):
+        result = beta(beta_gap_returns, beta_gap_benchmark)
+        assert result["A"] == pytest.approx(1.4)
+
     def test_misaligned_index_raises(self, returns_df, monthly_index):
         bad_bench = pd.Series(0.01, index=pd.date_range("2000-01-31", periods=36, freq="ME"))
         with pytest.raises(ValueError):
@@ -81,3 +85,12 @@ class TestRollingBeta:
     def test_flat_benchmark_gives_nan(self, returns_df, flat_benchmark):
         result = rolling_beta(returns_df, flat_benchmark, window=12)
         assert result.isna().all().all(), "Flat benchmark windows → NaN"
+
+    def test_internal_gap_is_not_compressed(self):
+        idx = pd.date_range("2020-01-31", periods=6, freq="ME")
+        bench = pd.Series([0.01, -0.02, 0.03, -0.01, 0.02, 0.04], index=idx, name="B")
+        strat = (bench * 1.5).to_frame("S")
+        strat.iloc[2, 0] = np.nan
+        result = rolling_beta(strat, bench, window=3)
+        assert result.loc[idx[-1], "S"] == pytest.approx(1.5)
+        assert pd.isna(result.loc[idx[3], "S"])

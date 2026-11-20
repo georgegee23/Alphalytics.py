@@ -9,10 +9,9 @@ def calculate_autocorrelation(factor_ts, lag=1):
     """
     Calculate the autocorrelation for each column in the DataFrame at a specified lag.
 
-    This function computes the autocorrelation for each time series (column) in the input DataFrame
-    at the given lag, ensuring there are sufficient data points after dropping NaNs. If a column has
-    fewer than lag + 1 non-NaN values, the autocorrelation is set to NaN explicitly to avoid
-    computation with insufficient degrees of freedom.
+    The lag is applied on the original index, so a missing print stays a gap
+    instead of closing up. A column with ``lag + 1`` or fewer finite values
+    returns NaN.
 
     Parameters:
     factor_ts (pd.DataFrame): The input DataFrame with time series data in columns, typically factor scores.
@@ -24,11 +23,13 @@ def calculate_autocorrelation(factor_ts, lag=1):
     """
     autocorrelations = {}
     for column in factor_ts.columns:
-        series = factor_ts[column].dropna()
-        if len(series) > lag + 1:  # Ensure enough data for meaningful autocorrelation
-            autocorr = series.autocorr(lag=lag)
+        series = factor_ts[column]
+        # Lag on the original index. Dropping NaNs first would turn a
+        # calendar lag into a lag across the previous valid print.
+        if series.dropna().shape[0] <= lag + 1:
+            autocorr = np.nan
         else:
-            autocorr = np.nan  # Explicitly set NaN if insufficient data
+            autocorr = series.autocorr(lag=lag)
         autocorrelations[column] = autocorr
     return pd.Series(autocorrelations)
 
@@ -59,7 +60,11 @@ def compute_factor_autocorr(factor_ts: pd.DataFrame, max_lag: int):
 def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Series:
 
     """
-    Compute the turnover rate for a specific quantile.
+    Turnover of one quantile from the previous date to this one.
+
+    Turnover is ``1 - |intersection| / |union|`` of the names in the
+    quantile on the two dates, so names that enter count as well as names
+    that leave. The first date is NaN. An empty union is NaN.
 
     Parameters:
     - quantiles: DataFrame where each row is a time period, each column is an asset,
@@ -72,17 +77,19 @@ def compute_quantile_turnover(quantiles:pd.DataFrame, target_quantile) -> pd.Ser
 
 
     quantiles = quantiles.dropna(how="all")
-    quantiles_shifted = quantiles.shift(-1).dropna(how="all")
+    # 1 where the asset is in the target quantile. NaN membership is not a holding.
+    held = (quantiles == target_quantile).astype(float)
+    previous = held.shift(1)
 
-    common_indices =  quantiles.index.intersection(quantiles_shifted.index)
-
-    selected_quantile = (quantiles == target_quantile).loc[common_indices]
-    selected_quantile_shifted = (quantiles_shifted == target_quantile).loc[common_indices]
-
-    unchanged = selected_quantile & selected_quantile_shifted
-    total_holdings = selected_quantile.sum(axis=1).replace(0, np.nan)
-
-    return 1 - (unchanged.sum(axis=1) / total_holdings)
+    held_now = held.fillna(0.0) > 0
+    held_prev = previous.fillna(0.0) > 0
+    # The first date has no prior book. An empty union (nobody held on
+    # either date) is undefined, not zero turnover.
+    has_history = previous.notna().any(axis=1)
+    union = (held_now | held_prev).sum(axis=1).astype(float)
+    intersection = (held_now & held_prev).sum(axis=1).astype(float)
+    turnover = 1 - intersection / union.where(union > 0)
+    return turnover.where(has_history)
 
 
 def compute_quantiles_turnover(quantiles: pd.DataFrame) -> pd.DataFrame:

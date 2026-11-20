@@ -4,10 +4,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from alphalytics.returns.metrics import compounded_ann_return
+from alphalytics.returns.risk import cvar, max_drawdown, ulcer_index
 from alphalytics.returns.ratios import (
     sharpe_ratio,
     sortino_ratio,
     calmar_ratio,
+    martin_ratio,
+    starr,
 )
 from alphalytics.returns.relative import omega_ratio
 
@@ -64,6 +68,18 @@ class TestCalmarRatio:
     def test_no_drawdown_returns_nan(self, positive_only_returns):
         result = calmar_ratio(positive_only_returns, periods_per_year=12)
         assert result.isna().all(), "Zero max-drawdown should give NaN, not inf"
+
+    def test_uses_compounded_return(self, alternating_monthly_returns):
+        ann = compounded_ann_return(alternating_monthly_returns, periods_per_year=12)
+        mdd = abs(max_drawdown(alternating_monthly_returns))
+        assert ann == pytest.approx((1.08 ** 6) - 1)
+        assert calmar_ratio(alternating_monthly_returns, periods_per_year=12) == pytest.approx(ann / mdd)
+        ui = ulcer_index(alternating_monthly_returns)
+        assert martin_ratio(alternating_monthly_returns, periods_per_year=12) == pytest.approx(ann / ui)
+        es = abs(cvar(alternating_monthly_returns))
+        assert starr(alternating_monthly_returns, periods_per_year=12) == pytest.approx(
+            ann / (es * np.sqrt(12))
+        )
 
 
 class TestOmegaRatio:

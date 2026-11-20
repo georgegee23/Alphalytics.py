@@ -13,6 +13,8 @@ from alphalytics.returns.relative import (
     active_risk,
     information_ratio,
     rolling_information_ratio,
+    rolling_active_return,
+    rolling_hit_rate,
     hit_rates,
     up_capture,
     down_capture,
@@ -46,6 +48,35 @@ class TestBullBearHitRate:
     def test_bear(self, returns_df, benchmark_series):
         result = bear_hit_rate(returns_df["StratA"], benchmark_series)
         assert isinstance(result, float)
+
+
+class TestBullHitRate:
+    def test_gap_is_not_a_miss(self, bull_gap_strategy, bull_gap_benchmark):
+        assert bull_hit_rate(bull_gap_strategy, bull_gap_benchmark) == pytest.approx(1.0)
+        assert hit_rate(bull_gap_strategy, bull_gap_benchmark) == pytest.approx(1.0)
+
+
+class TestRollingActiveReturn:
+    def test_internal_gap_is_not_compressed(self):
+        idx = pd.date_range("2020-01-31", periods=6, freq="ME")
+        strat = pd.Series([0.01, 0.02, np.nan, 0.03, 0.04, 0.05], index=idx, name="S")
+        bench = pd.Series(0.0, index=idx, name="B")
+        result = rolling_active_return(strat, bench, window=3, periods_per_year=12)
+        assert result.loc[idx[-1]] == pytest.approx(0.04 * 12)
+        assert idx[2] not in result.index or pd.isna(result.loc[idx[2]])
+        # The compressed calendar would score mean(0.01, 0.02, 0.03) on the
+        # date of the first valid point after the gap.
+        assert idx[3] not in result.index or pd.isna(result.loc[idx[3]])
+
+
+class TestRollingHitRate:
+    def test_internal_gap_is_not_a_miss(self):
+        idx = pd.date_range("2020-01-31", periods=6, freq="ME")
+        strat = pd.Series([0.02, 0.02, np.nan, -0.01, 0.02, 0.02], index=idx, name="S")
+        bench = pd.Series(0.0, index=idx, name="B")
+        result = rolling_hit_rate(strat, bench, window=3)
+        assert result.loc[idx[-1]] == pytest.approx(2 / 3)
+        assert idx[3] not in result.index or pd.isna(result.loc[idx[3]])
 
 
 class TestWinLossRatio:
@@ -141,3 +172,21 @@ class TestCaptureRatios:
         bench = pd.Series(0.01, index=monthly_index, name="up_only")
         result = down_capture(returns_df, bench)
         assert result.isna().all()
+
+    def test_one_strategy_gap_does_not_change_the_other(self):
+        idx = pd.date_range("2020-01-31", periods=4, freq="ME")
+        bench = pd.Series([-0.10, -0.20, 0.10, 0.05], index=idx, name="Benchmark")
+        frame = pd.DataFrame({
+            "A": [-0.05, -0.10, 0.10, 0.05],
+            "B": [-0.05, np.nan, 0.10, 0.05],
+        }, index=idx)
+        alone = down_capture(frame["A"], bench)
+        assert down_capture(frame, bench)["A"] == pytest.approx(alone)
+        named = frame["A"].rename("bench")
+        assert down_capture(named, bench) == pytest.approx(alone)
+
+    def test_total_loss_is_nan(self):
+        idx = pd.date_range("2020-01-31", periods=3, freq="ME")
+        bench = pd.Series([-0.10, -0.20, 0.10], index=idx, name="Benchmark")
+        dead = pd.Series([-1.0, -0.10, 0.10], index=idx, name="Dead")
+        assert np.isnan(down_capture(dead, bench))

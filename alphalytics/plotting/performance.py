@@ -143,6 +143,10 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
         xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
         ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
 
+    The slope from the origin to each point is the Sharpe ratio at a
+    risk-free rate of zero. Volatility is the sample standard deviation
+    used by ``sharpe_ratio``, annualized by ``sqrt(periods_per_year)``.
+
     Returns:
         The matplotlib Figure and Axes objects.
     """
@@ -167,10 +171,11 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     if colors is not None:
         colors = [colors[i % len(colors)] for i in range(n)]
 
-    # 4. Helper function to calculate metrics
+    # 4. Coordinates whose slope is sharpe_ratio at a zero risk-free rate.
+    # y / x = (mean * N) / (sample_std * sqrt(N)) = mean / sample_std * sqrt(N).
     def get_metrics(series, freq):
-        ann_return = float(np.mean(series)) * freq
-        ann_volatility = float(np.std(series)) * np.sqrt(freq)
+        ann_return = float(series.mean()) * freq
+        ann_volatility = float(annual_std(series, periods_per_year=freq))
         return ann_volatility, ann_return
 
     # 5. Calculate coordinates for all series
@@ -242,8 +247,8 @@ def plot_sortino(returns: Union[pd.Series, pd.DataFrame],
 
     Identical to `plot_risk_return` but the x-axis shows annualised downside
     deviation (the denominator of the Sortino ratio) instead of total
-    volatility. The slope from the origin to each point is the strategy's
-    Sortino ratio with MAR = `mar`.
+    volatility. The y-axis is the annualized mean excess over `mar`, so the
+    slope from the origin equals the Sortino ratio.
 
     Args:
         returns: pd.Series (single series) or pd.DataFrame (multiple series, one per column).
@@ -288,7 +293,7 @@ def plot_sortino(returns: Union[pd.Series, pd.DataFrame],
     all_risks, all_rets = [], []
     for col in df.columns:
         series = df[col].dropna()
-        ann_ret = float(series.mean()) * periods_per_year
+        ann_ret = float(series.mean() - mar) * periods_per_year
         downside = float(ann_downside_deviation(series, mar=mar, periods_per_year=periods_per_year))
         all_risks.append(downside)
         all_rets.append(ann_ret)
@@ -301,7 +306,7 @@ def plot_sortino(returns: Union[pd.Series, pd.DataFrame],
 
     ax.set_title(title, fontsize=font_size+3, fontweight='bold', pad=5)
     ax.set_xlabel('Annualized Downside Deviation', fontsize=font_size)
-    ax.set_ylabel('Annualized Return', fontsize=font_size)
+    ax.set_ylabel('Annualized Excess Return', fontsize=font_size)
 
     ax.grid(True, linestyle='--', alpha=0.6)
     if anchor_zero:

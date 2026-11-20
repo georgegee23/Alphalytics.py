@@ -27,23 +27,26 @@ def beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.Series:
     if not returns.index.equals(benchmark.index):
         raise ValueError(
             "returns and benchmark must share the same index. "
-            "Align them before calling calculate_beta()."
+            "Align them before calling beta()."
         )
 
-    if len(benchmark) < 2:
-        return pd.Series(np.nan, index=returns.columns)
+    betas = {}
+    for col in returns.columns:
+        # Pairwise: a gap in one strategy does not shrink the others,
+        # and the covariance and benchmark variance share one sample size.
+        pair = pd.concat([returns[col], benchmark], axis=1).dropna()
+        if len(pair) < 2:
+            betas[col] = np.nan
+            continue
+        y = pair.iloc[:, 0]
+        x = pair.iloc[:, 1]
+        bm_variance = x.var(ddof=1)
+        if bm_variance == 0 or np.isclose(bm_variance, 0, atol=1e-15):
+            betas[col] = np.nan
+            continue
+        betas[col] = y.cov(x) / bm_variance
 
-    bm_variance = benchmark.var(ddof=1)
-
-    if bm_variance == 0 or np.isclose(bm_variance, 0, atol=1e-15):
-        return pd.Series(np.nan, index=returns.columns)
-
-    ret_centered = returns - returns.mean()
-    bm_centered = benchmark - benchmark.mean()
-
-    covariances = ret_centered.mul(bm_centered, axis=0).sum() / (len(benchmark) - 1)
-
-    return covariances / bm_variance
+    return pd.Series(betas, index=returns.columns, dtype=float)
 
 def bull_bear_beta(returns: pd.DataFrame, benchmark: pd.Series) -> pd.DataFrame:
     """
@@ -168,19 +171,25 @@ def rolling_beta(returns: pd.DataFrame, benchmark: pd.Series, window: int = 12) 
     """
     Calculates rolling beta using native vectorized pandas methods.
     Mathematically identical to Cov(R, B) / Var(B) with ddof=1.
+
+    The window stays on the original calendar. A missing row is not dropped
+    before the roll, so it cannot pull a later return into an earlier window.
+    A window with fewer than ``window`` paired observations is NaN.
     """
-    # 1. Align data
-    combined = pd.concat([returns, benchmark.rename("__benchmark__")], axis=1).dropna()
+    # 1. Align data. Keep gaps in place.
+    combined = pd.concat([returns, benchmark.rename("__benchmark__")], axis=1)
     aligned_returns = combined[returns.columns]
     aligned_bench = combined["__benchmark__"]
 
     # 2. Vectorized rolling covariance and variance
     # pandas smartly broadcasts the benchmark Series against every column in the DataFrame
-    rolling_cov = aligned_returns.rolling(window=window).cov(aligned_bench)
-    rolling_var = aligned_bench.rolling(window=window).var()
+    rolling_cov = aligned_returns.rolling(window=window, min_periods=window).cov(aligned_bench)
+    rolling_var = aligned_bench.rolling(window=window, min_periods=window).var()
 
     # 3. Divide to get rolling beta (div(axis=0) ensures correct date alignment)
     rolling_betas = rolling_cov.div(rolling_var, axis=0)
-    rolling_betas[rolling_var == 0] = np.nan  # guard flat-benchmark windows
+    # Same flat-benchmark guard as beta(), including near-zero variance.
+    flat = np.isclose(rolling_var.to_numpy(dtype=float), 0.0, atol=1e-15)
+    rolling_betas.loc[flat] = np.nan
 
     return rolling_betas

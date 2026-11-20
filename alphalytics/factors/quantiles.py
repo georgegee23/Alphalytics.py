@@ -5,9 +5,14 @@ import numpy as np
 
 # ============== QUANTILE PERFORMANCE ANALYSIS ============== #
 
-def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.DataFrame:
+def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 1) -> pd.DataFrame:
     """
     Convert a DataFrame's values into quantiles.
+
+    The default ranks each row across assets (a cross-section). Pass
+    ``axis=0`` to rank each asset through time instead. A slice that
+    cannot form exactly ``n_quantiles`` bins, including ties that collapse
+    bins, is returned as NaN so a label always means the same bucket.
 
     Parameters:
     -----------
@@ -15,7 +20,7 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
         Input DataFrame with numeric values to be converted into quantiles.
     n_quantiles : int
         Number of quantiles to create (must be a positive integer).
-    axis : int, optional (default=0)
+    axis : int, optional (default=1)
         Axis along which to compute quantiles (0 for columns, 1 for rows).
 
     Returns:
@@ -48,10 +53,15 @@ def to_quantiles(factors: pd.DataFrame, n_quantiles: int, axis: int = 0) -> pd.D
         if len(valid_x) < n_quantiles:
             return pd.Series(np.nan, index=x.index)
         try:
-            return pd.qcut(valid_x, q=n_quantiles, labels=False, duplicates="drop") + 1 # add 1 to make quantile labels start from 1
+            labels = pd.qcut(valid_x, q=n_quantiles, labels=False, duplicates="drop")
         except ValueError:
             # Handle cases where quantization fails (e.g., insufficient unique values)
             return pd.Series(np.nan, index=x.index)
+        # A collapsed bin count would reuse labels that mean different things
+        # on dates that formed the full set of quantiles.
+        if labels.nunique(dropna=True) != n_quantiles:
+            return pd.Series(np.nan, index=x.index)
+        return (labels + 1).reindex(x.index)
 
     # Apply quantile computation along the specified axis
     quantiles_df = factors.apply(compute_quantiles, axis=axis)
@@ -87,12 +97,17 @@ def compute_quantile_returns(quantiles: pd.DataFrame, returns: pd.DataFrame) -> 
     if not quantiles.index.equals(returns.index) or not quantiles.columns.equals(returns.columns):
         raise ValueError("quantiles and returns must have the same index and columns")
 
-    # Stack the DataFrames into Series
-    quantiles_stacked = quantiles.stack()
+    # Quantile at t earns the return at t+1. The leading row has no prior label.
+    lagged = quantiles.shift(1)
+    quantiles_stacked = lagged.stack()
     returns_stacked = returns.stack()
 
     # Create a DataFrame with quantile and return columns
     data = pd.DataFrame({'quantile': quantiles_stacked, 'return': returns_stacked})
+
+    data = data.dropna()
+    if data.empty:
+        return pd.DataFrame(index=returns.index[:0])
 
     # Group by time (level 0) and quantile, compute mean returns, and unstack into a DataFrame
     quantile_returns = data.groupby([data.index.get_level_values(0), 'quantile'])['return'].mean().unstack()
