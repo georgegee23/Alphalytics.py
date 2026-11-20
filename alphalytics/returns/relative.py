@@ -849,9 +849,28 @@ def rolling_capture_spread(strategy_returns: Union[pd.Series, pd.DataFrame], ben
     return _rolling_capture(strategy_returns, benchmark_returns, window, capture_spread)
 
 
+def _overall_capture(up, down):
+    """Up capture divided by down capture, defined only for positive down capture.
+
+    A negative down capture means the strategy gained while the benchmark
+    fell. Dividing by it flips the sign of the ratio and ranks the best
+    defensive profiles as the worst, so it is NaN, as is a zero down
+    capture. The capture spread (up - down) still compares those strategies.
+    """
+    if isinstance(down, pd.Series):
+        return up / down.where(down > 0)
+    if pd.isna(down) or down <= 0:
+        return np.nan
+    return up / down
+
+
 def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.DataFrame:
     """
     Calculates Up Capture, Down Capture, Overall Capture and Spread for multiple strategies.
+
+    Overall Capture is Up Capture / Down Capture. It is NaN when Down Capture
+    is zero or negative, where the ratio's sign stops meaning anything; use
+    Spread to compare those strategies.
 
     Args:
         returns (pd.DataFrame): Periodic returns of the strategies.
@@ -865,7 +884,7 @@ def capture_ratios(returns: pd.DataFrame, benchmark_returns: pd.Series) -> pd.Da
     # (These functions already handle the date alignment and dropna internally!)
     up = up_capture(returns, benchmark_returns)
     down = down_capture(returns, benchmark_returns)
-    capture = up/down
+    capture = _overall_capture(up, down)
     spread = up - down
     
     # 2. Combine into a clean summary DataFrame

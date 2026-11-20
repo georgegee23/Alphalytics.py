@@ -61,6 +61,54 @@ class TestAnnReturn:
         assert inferred.equals(explicit)
 
 
+class TestTrailingCoverage:
+    """A trailing window needs a track record that spans it."""
+
+    @staticmethod
+    def _frame():
+        idx = pd.date_range("2015-01-31", periods=60, freq="ME")
+        new = np.full(60, np.nan)
+        new[-24:] = 0.01  # launched two years before the end
+        return pd.DataFrame({"OLD": np.full(60, 0.01), "NEW": new}, index=idx)
+
+    def test_late_launch_is_nan_beyond_its_history(self):
+        frame = self._frame()
+        three = ann_return(frame, years=3, periods_per_year=12)
+        assert three["OLD"] == pytest.approx(1.01 ** 12 - 1)
+        assert np.isnan(three["NEW"])
+        two = ann_return(frame, years=2, periods_per_year=12)
+        assert two["NEW"] == pytest.approx(1.01 ** 12 - 1)
+
+    def test_late_launch_return_n(self):
+        frame = self._frame()
+        assert np.isnan(return_n(frame, 36)["NEW"])
+        assert return_n(frame, 24)["NEW"] == pytest.approx(1.01 ** 24 - 1)
+
+    def test_stale_series_is_nan(self):
+        frame = self._frame()
+        frame.iloc[-1, 0] = np.nan  # OLD has no return on the last date
+        assert np.isnan(ann_return(frame, years=1, periods_per_year=12)["OLD"])
+
+    def test_internal_gap_is_skipped(self):
+        frame = self._frame()
+        frame.iloc[-6, 0] = np.nan
+        result = ann_return(frame, years=1, periods_per_year=12)["OLD"]
+        assert result == pytest.approx(1.01 ** 11 - 1)
+
+    def test_ytd_needs_start_of_year(self):
+        idx = pd.date_range("2020-01-31", periods=18, freq="ME")  # ends Jun 2021
+        frame = pd.DataFrame({"A": 0.01, "B": np.nan}, index=idx)
+        frame.loc["2021-03-31":, "B"] = 0.01
+        ytd = return_ytd(frame)
+        assert ytd["A"] == pytest.approx(1.01 ** 6 - 1)
+        assert np.isnan(ytd["B"])
+
+    def test_short_history_keeps_label(self):
+        frame = self._frame()
+        assert ann_return(frame, years=10, periods_per_year=12).name == "10 Year"
+        assert return_n(frame, 100).name == "100 Period"
+
+
 class TestAnnReturnCommonSI:
     def test_basic(self, returns_df):
         result = ann_return_common_si(returns_df, periods_per_year=12)

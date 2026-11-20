@@ -463,14 +463,21 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
                                      wealth low inside the benchmark's peak-to-trough
                                      window (need not align with the benchmark trough).
                 - Time to Recovery:  Periods from the peak until the strategy's
-                                     wealth returns to its pre-episode peak.
-                                     The search includes dates inside the benchmark
-                                     episode. ``0`` if the strategy never trades
-                                     below that peak. NaN if it went below and has
-                                     not recovered by the end of the sample.
+                                     wealth returns to its pre-episode peak, after
+                                     first falling below it inside the benchmark's
+                                     peak-to-trough window. The recovery may come
+                                     after the benchmark trough. ``0`` if the
+                                     strategy never trades below that peak inside
+                                     the window. NaN if it went below and has not
+                                     recovered by the end of the sample.
                 - Periods Underwater: Count of periods from the peak through the
                                      benchmark trough where strategy wealth is
                                      below the pre-episode peak.
+
+              The window covers only dates from the benchmark episode: when the
+              episode starts at the benchmark's first return, strategy returns
+              before that date are ignored. A strategy with no returns inside
+              the window is NaN in every numeric column.
     """
     if not isinstance(benchmark, pd.Series):
         raise TypeError("benchmark must be a pd.Series.")
@@ -497,7 +504,11 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
         for col in strategies.columns:
             strat = strategies[col]
             post = strat.dropna()
-            if not inception:
+            if inception:
+                # The benchmark's first return opens the episode. Anything the
+                # strategy earned before the benchmark began is not part of it.
+                post = post[post.index >= peak_date]
+            else:
                 post = post[post.index > peak_date]
             episode_returns = post.loc[:trough_date] if len(post) else post
 
@@ -511,22 +522,26 @@ def compare_drawdowns(strategies: Union[pd.Series, pd.DataFrame], benchmark: pd.
                 else:
                     vol = np.nan
 
+            # A strategy with no returns inside the window has nothing to report.
             time_to_trough = np.nan
             time_to_recovery = np.nan
-            periods_underwater = 0
+            periods_underwater = np.nan
 
-            if len(post) > 0:
+            if len(episode_returns) > 0:
                 wealth = (1 + post).cumprod()
                 wealth_episode = wealth.loc[:trough_date]
-                if len(wealth_episode) > 0:
-                    strat_trough_date = wealth_episode.idxmin()
-                    time_to_trough = _index_pos(wealth.index, strat_trough_date) + 1
-                    periods_underwater = int((wealth_episode < 1.0).sum())
+                strat_trough_date = wealth_episode.idxmin()
+                time_to_trough = _index_pos(wealth.index, strat_trough_date) + 1
+                underwater = wealth_episode < 1.0
+                periods_underwater = int(underwater.sum())
 
-                if not bool((wealth < 1.0).any()):
+                # Only a dip inside the benchmark's peak-to-trough window needs
+                # recovering. A later, unrelated drawdown is not this episode's.
+                # The recovery itself may come after the benchmark trough.
+                if not bool(underwater.any()):
                     time_to_recovery = 0.0
                 else:
-                    breach = wealth[wealth < 1.0].index[0]
+                    breach = underwater[underwater].index[0]
                     recovered = wealth.loc[breach:]
                     recovered = recovered[recovered >= 1.0]
                     if len(recovered) > 0:
@@ -632,8 +647,9 @@ def time_to_recovery_table(strategies: Union[pd.Series, pd.DataFrame], benchmark
         A DataFrame with index "Date Range" formatted ``"YYYY-MM-DD to YYYY-MM-DD"``
         (peak to trough), strategy tickers as columns, and time to recovery
         (in periods) as float values. ``0`` means the strategy never went below
-        its pre-episode peak; ``NaN`` means it went underwater and has not
-        yet recovered. Sorted chronologically by peak date. If the benchmark
+        its pre-episode peak inside the benchmark's peak-to-trough window;
+        ``NaN`` means it went underwater and has not yet recovered, or has no
+        returns inside the window. Sorted chronologically by peak date. If the benchmark
         never went underwater, a row-less DataFrame with the same columns and
         axis names.
     """

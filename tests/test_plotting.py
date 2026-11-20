@@ -8,7 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alphalytics.plotting.performance import plot_capture_hit_rate, plot_risk_return, plot_sortino
+from alphalytics.plotting.performance import (
+    plot_capture_hit_rate, plot_risk_return, plot_sortino,
+    plot_cumulative_performance, plot_trailing_performance,
+)
+from alphalytics.returns.aggregators import performance_table
 from alphalytics.returns.ratios import sharpe_ratio, sortino_ratio
 
 
@@ -79,6 +83,45 @@ class TestPlotCaptureHitRate:
         m = {"Fund A": "o", "Fund B": "s", "Fund C": "D"}
         fig, ax = plot_capture_hit_rate(strategy_returns, benchmark_returns, markers=m)
         plt.close(fig)
+
+    def test_undefined_overall_capture_warns(self):
+        idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+        bench = pd.Series([0.03, -0.02] * 12, index=idx, name="Bench")
+        frame = pd.DataFrame({
+            "Convex": np.where(bench > 0, 0.3 * bench, -0.2 * bench),
+            "Index": bench.to_numpy() * 1.1,
+        }, index=idx)
+        with pytest.warns(UserWarning, match="Convex"):
+            fig, ax = plot_capture_hit_rate(frame, bench, markers="o")
+        plt.close(fig)
+
+
+class TestFrequencyDefaults:
+    def test_cumulative_performance_infers_monthly(self):
+        idx = pd.date_range("2015-01-31", periods=72, freq="ME")
+        rets = pd.DataFrame({"A": np.linspace(0.0, 0.02, len(idx))}, index=idx)
+        fig, axes = plot_cumulative_performance(rets)
+        try:
+            cells = axes[2].tables[0].get_celld()
+            header = [cells[(0, c)].get_text().get_text() for c in range(9)]
+            assert header[1:] == ["1M", "3M", "YTD", "1 Year", "3 Year", "5 Year", "10 Year", "SI"]
+            # 1M is the last monthly return, not 21 months compounded.
+            assert cells[(1, 1)].get_text().get_text() == f"{rets['A'].iloc[-1]:.2%}"
+            assert cells[(1, 7)].get_text().get_text() == "N/A"
+        finally:
+            plt.close(fig)
+
+    def test_trailing_performance_infers_daily(self, strategy_returns):
+        fig, ax = plot_trailing_performance(strategy_returns)
+        try:
+            expected = performance_table(strategy_returns, periods_per_year=252)["1 Year"]
+            n_periods = len(ax.get_xticks())
+            year_col = [t.get_text() for t in ax.get_xticklabels()].index("1-Year")
+            heights = [ax.patches[i * n_periods + year_col].get_height()
+                for i in range(len(strategy_returns.columns))]
+            assert heights == pytest.approx(expected.to_list())
+        finally:
+            plt.close(fig)
 
 
 class TestRiskReturnSlope:

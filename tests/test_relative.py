@@ -168,6 +168,20 @@ class TestCaptureRatios:
         assert "Overall Capture" in result.columns
         assert "Spread" in result.columns
 
+    def test_overall_capture_undefined_when_down_capture_not_positive(self):
+        idx = pd.date_range("2020-01-31", periods=24, freq="ME")
+        bench = pd.Series([0.03, -0.02] * 12, index=idx, name="Bench")
+        frame = pd.DataFrame({
+            # Gains in both regimes: 30% up capture, -20% down capture.
+            "Convex": np.where(bench > 0, 0.3 * bench, -0.2 * bench),
+            "Index": bench.to_numpy(),
+        }, index=idx)
+        table = capture_ratios(frame, bench)
+        assert table.loc["Convex", "Down Capture"] < 0
+        assert np.isnan(table.loc["Convex", "Overall Capture"])
+        assert table.loc["Convex", "Spread"] > 0
+        assert table.loc["Index", "Overall Capture"] == pytest.approx(1.0)
+
     def test_no_down_market(self, returns_df, monthly_index):
         bench = pd.Series(0.01, index=monthly_index, name="up_only")
         result = down_capture(returns_df, bench)

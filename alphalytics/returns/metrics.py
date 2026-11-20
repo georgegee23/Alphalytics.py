@@ -9,28 +9,45 @@ from alphalytics.utils import _infer_periods_per_year
 
 # ============== RETURNS FUNCTIONS ============== #
 
+def _covers_window(rets: pd.DataFrame, start: int) -> pd.Series:
+    """Columns whose track record spans rows ``start`` through the last row.
+
+    A column covers the window when it has an observation on or before the
+    window's first row and an observation on the last row. A strategy that
+    launched inside the window, or stopped reporting before it ended, does
+    not cover it: compounding its shorter history would understate a
+    multi-year return once annualized over the full window. A gap strictly
+    inside the window is still skipped.
+    """
+    started = rets.iloc[: start + 1].notna().any()
+    current = rets.iloc[-1].notna()
+    return started & current
+
+
 def return_n(rets: pd.DataFrame, n: int) -> pd.Series:
     """
     Calculates the cumulative trailing return over the last 'n' periods.
 
     A window shorter than one period is undefined (``iloc[-0:]`` would
-    otherwise compound the whole history) and returns NaN.
+    otherwise compound the whole history) and returns NaN. A column whose
+    track record does not span the window is NaN (see `_covers_window`).
     """
     if n < 1 or len(rets) < n:
-        return pd.Series(np.nan, index=rets.columns, dtype=float)
+        return pd.Series(np.nan, index=rets.columns, dtype=float, name=f"{n} Period")
 
     window = rets.iloc[-n:]
     ret_n = (window + 1).prod() - 1
-    # An empty product is 1, which would publish a 0% return for a column
-    # that has no finite observations in the window.
-    ret_n = ret_n.where(window.notna().any(), np.nan)
+    ret_n = ret_n.where(_covers_window(rets, len(rets) - n), np.nan)
     ret_n.name = f"{n} Period"
     return ret_n
 
 def return_ytd(rets: pd.DataFrame) -> pd.Series:
     """
     Calculates YTD return using the calendar year of the last available date.
-    Assumes rets has a DatetimeIndex.
+    Assumes rets has a sorted DatetimeIndex.
+
+    A column with no observation on or before the first date of that year
+    (it launched during the year) or on the last date is NaN.
     """
     if rets.empty:
         return pd.Series(0.0, index=rets.columns)
@@ -39,11 +56,12 @@ def return_ytd(rets: pd.DataFrame) -> pd.Series:
     current_year = rets.index[-1].year
 
     # Slice only the returns belonging to that year
-    ytd_data = rets[rets.index.year == current_year]
+    in_year = rets.index.year == current_year
+    ytd_data = rets[in_year]
 
     # Calculate geometric return for that slice
     ytd_rets = (ytd_data + 1).prod() - 1
-    ytd_rets = ytd_rets.where(ytd_data.notna().any(), np.nan)
+    ytd_rets = ytd_rets.where(_covers_window(rets, int(np.argmax(in_year))), np.nan)
     ytd_rets.name = "YTD"
     return ytd_rets
 
@@ -51,7 +69,8 @@ def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = None)
     """
     Calculates the annualized trailing return over a specific number of years.
 
-    ``periods_per_year`` is inferred from the index when omitted.
+    ``periods_per_year`` is inferred from the index when omitted. A column
+    whose track record does not span the window is NaN (see `_covers_window`).
     """
     if years < 1:
         raise ValueError(f"years must be >= 1 to annualize, got {years}")
@@ -61,15 +80,15 @@ def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = None)
 
     n = years * periods_per_year
 
-    # Safety check: If history is shorter than requested periods, return NaN
+    # Safety check: If history is shorter than requested periods, return NaN.
+    # Keep the label so a table built from these columns stays readable.
     if len(rets) < n:
-        return pd.Series(np.nan, index=rets.columns)
+        return pd.Series(np.nan, index=rets.columns, dtype=float, name=f"{years} Year")
 
     # 1. Calculate cumulative return over the sliced last 'n' periods.
-    # A column with no finite return in the window is NaN, not 0%.
     window = rets.iloc[-n:]
     n_ret = (window + 1).prod() - 1
-    n_ret = n_ret.where(window.notna().any(), np.nan)
+    n_ret = n_ret.where(_covers_window(rets, len(rets) - n), np.nan)
 
     # 2. Annualize the cumulative return
     ann_ret = (n_ret + 1) ** (1 / years) - 1

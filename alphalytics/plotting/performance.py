@@ -1,4 +1,6 @@
 
+import warnings
+
 import pandas as pd
 import numpy as np
 from typing import Union, List, Tuple, Optional
@@ -57,8 +59,18 @@ def plot_growth(returns: pd.DataFrame, initial_value: int = 100,
     return fig, ax
 
 
-def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = 252) -> None:
+def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = None):
+    """Growth chart, cumulative-return bars, and a trailing performance table.
 
+    Args:
+        returns: Periodic returns, one column per series.
+        title: Optional figure title.
+        periods_per_year: Sampling frequency (12 monthly, 52 weekly, 252
+            daily). Inferred from the index when None.
+
+    Returns:
+        The matplotlib Figure and a tuple of the three Axes.
+    """
     from alphalytics.returns.aggregators import performance_table
 
     font_size, width = 10, 0.8
@@ -87,8 +99,9 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     # --- Plot 3: Performance Table ---
     perf_table= performance_table(returns, periods_per_year)
 
-    # Format table data as percentages
-    table_data = perf_table.map(lambda x: f"{x:.2%}").reset_index()
+    # Format table data as percentages. A window longer than a series'
+    # track record is NaN.
+    table_data = perf_table.map(lambda x: "N/A" if pd.isna(x) else f"{x:.2%}").reset_index()
     table_data.columns = ['Quantile'] + list(perf_table.columns)
 
     # Create table with proper formatting
@@ -843,9 +856,10 @@ def plot_xy_symmetric(data: pd.DataFrame, figsize=(3, 3), title=None, fontsize=6
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.tick_params(axis='both', labelsize=fontsize)
 
-    # Find the absolute max distance from center for each axis
-    max_dev_x = (data[x_col] - center_x).abs().max()
-    max_dev_y = (data[y_col] - center_y).abs().max()
+    # Find the absolute max distance from center for each axis. An all-NaN
+    # column falls back to min_distance instead of NaN axis limits.
+    max_dev_x = np.nan_to_num((data[x_col] - center_x).abs().max())
+    max_dev_y = np.nan_to_num((data[y_col] - center_y).abs().max())
 
     # Add 20% padding and enforce minimum distance per axis
     dist_x = max(max_dev_x * 1.2, min_distance)
@@ -1647,7 +1661,7 @@ def plot_rolling_return(strategy_returns: Union[pd.Series, pd.DataFrame],
     return fig, ax
 
 
-def plot_trailing_performance(returns: pd.DataFrame, periods_per_year: int = 12,
+def plot_trailing_performance(returns: pd.DataFrame, periods_per_year: int = None,
     figsize: tuple = (8, 4), title: str = 'Trailing Performance',
     fontsize: int = 9) -> Tuple[plt.Figure, plt.Axes]:
     """Grouped bar chart of trailing returns (YTD, 1Y, 3Y, 5Y, CI) per strategy.
@@ -1655,6 +1669,7 @@ def plot_trailing_performance(returns: pd.DataFrame, periods_per_year: int = 12,
     Args:
         returns: Periodic returns of the strategies (DataFrame, one column per strategy).
         periods_per_year: Annualization factor (12 for monthly, 252 for daily).
+            Inferred from the index when None.
         figsize: Figure dimensions (width, height) in inches.
         title: Chart title.
         fontsize: Base font size for labels and annotations.
@@ -1905,6 +1920,15 @@ def plot_capture_hit_rate(strategy_returns: pd.DataFrame, benchmark_returns: pd.
         "Overall Capture": captures["Overall Capture"],
         "Hit Rate": hit_rates,
     })
+
+    omitted = list(plot_data.index[plot_data["Overall Capture"].isna()])
+    if omitted:
+        warnings.warn(
+            f"Overall Capture is undefined for {omitted} (down capture is zero, "
+            "negative, or has no data), so they are not plotted. Compare them "
+            "with the capture spread instead.",
+            stacklevel=2,
+        )
 
     # Plot via plot_xy_symmetric (x centered at 1.0, y centered at 0.5)
     fig, ax = plot_xy_symmetric(data=plot_data,

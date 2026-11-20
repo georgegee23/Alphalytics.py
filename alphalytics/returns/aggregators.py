@@ -6,7 +6,7 @@ from .relative import (
     hit_rate, bull_hit_rate, bear_hit_rate, skill_hit_rate,
     win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio,
     active_return, active_risk, information_ratio,
-    up_capture, down_capture, tail_capture_ratio,
+    up_capture, down_capture, tail_capture_ratio, _overall_capture,
 )
 
 from .ratios import (
@@ -35,8 +35,11 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = None) -> pd.Da
 
     Trailing windows are the last periods of the shared calendar. A missing
     return in one strategy does not delete that date for the others, and it
-    does not pull an older return into the window. Common SI is the only
-    column that requires every strategy to be present.
+    does not pull an older return into the window. A strategy whose track
+    record does not span a window (it launched inside it, or has no return
+    on the last date) is NaN for that window. A gap strictly inside the
+    window is skipped. Common SI is the only column that requires every
+    strategy to be present on every date.
 
     Args:
         rets: Periodic returns of the strategies.
@@ -134,6 +137,9 @@ def evaluate_asymmetry(strategy_returns: pd.DataFrame | pd.Series,
     benchmark_returns: pd.Series) -> pd.DataFrame:
     """Evaluates the up/down asymmetry and payoff profile of one or multiple strategies.
 
+    Overall Capture is NaN when Down Capture is zero or negative (see
+    `capture_ratios`).
+
     Args:
         strategy_returns: Periodic returns for the strategy/strategies.
         benchmark_returns: Periodic returns for the benchmark.
@@ -159,7 +165,7 @@ def evaluate_asymmetry(strategy_returns: pd.DataFrame | pd.Series,
         results[col] = {
             "Up Capture": up,
             "Down Capture": down,
-            "Overall Capture": np.nan if pd.isna(down) or down == 0 else up / down,
+            "Overall Capture": _overall_capture(up, down),
             "Tail Capture": tail_capture_ratio(strat, benchmark_returns),
             "Bull Win/Loss": bull_win_loss_ratio(strat, benchmark_returns),
             "Bear Win/Loss": bear_win_loss_ratio(strat, benchmark_returns),

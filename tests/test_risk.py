@@ -136,6 +136,42 @@ class TestRecovery:
         depth = next(iter(comparison.values()))["Depth"].iloc[0]
         assert depth == pytest.approx(-0.05)
 
+    def test_recovery_after_benchmark_trough(self):
+        idx, bench = self._benchmark()
+        strat = pd.Series([0.0, -0.10, 0.0, 0.05, 0.10, 0.01], index=idx, name="Slow")
+        table = time_to_recovery_table(strat, bench, n=1)
+        # Breach in Feb, inside the window. Back above the peak in May (period 4).
+        assert table.iloc[0, 0] == pytest.approx(4.0)
+
+    def test_drawdown_after_the_episode_is_not_a_recovery(self):
+        idx = pd.date_range("2020-01-31", periods=10, freq="ME")
+        bench = pd.Series([0.0, -0.30, -0.10, 0.05, 0.80] + [0.01] * 5, index=idx, name="Bench")
+        # Rises through the benchmark's Feb-Mar decline, then crashes in June.
+        strat = pd.Series([0.0, 0.02, 0.02, 0.02, 0.02, -0.40, 0.10, 0.50, 0.10, 0.10],
+            index=idx, name="Late")
+        table = time_to_recovery_table(strat, bench, n=1)
+        assert table.iloc[0, 0] == pytest.approx(0.0)
+
+    def test_no_returns_in_window_is_nan(self):
+        idx, bench = self._benchmark()
+        strat = pd.Series([np.nan, np.nan, np.nan, 0.01, 0.01, 0.01], index=idx, name="After")
+        row = next(iter(compare_drawdowns(strat, bench, n=1, periods_per_year=12).values())).iloc[0]
+        assert np.isnan(row["Depth"])
+        assert np.isnan(row["Time to Recovery"])
+        assert np.isnan(row["Periods Underwater"])
+
+    def test_inception_episode_ignores_history_before_benchmark(self):
+        idx = pd.date_range("2020-01-31", periods=8, freq="ME")
+        # Benchmark starts in April with a loss, so the episode opens at inception.
+        bench = pd.Series([np.nan, np.nan, np.nan, -0.10, -0.05, 0.20, 0.01, 0.01],
+            index=idx, name="Bench")
+        strat = pd.Series([-0.30, -0.30, -0.30] + [0.01] * 5, index=idx, name="Older")
+        row = next(iter(compare_drawdowns(strat, bench, n=1, periods_per_year=12).values())).iloc[0]
+        assert row["Peak"] == idx[3].strftime("%Y-%m-%d")
+        assert row["Depth"] == pytest.approx(0.0)
+        assert row["Time to Recovery"] == pytest.approx(0.0)
+        assert row["Periods Underwater"] == 0
+
 
 class TestAverageDrawdown:
     def test_basic(self, returns_df):
