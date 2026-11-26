@@ -1,6 +1,6 @@
 from .metrics import (
     return_n, return_ytd, ann_return, ann_return_common_si,
-    cumgrowth,
+    calendar_returns, cumgrowth, average_gain, average_loss,
 )
 
 from .risk import (

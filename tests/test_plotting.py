@@ -13,7 +13,9 @@ from alphalytics.plotting.performance import (
     plot_cumulative_performance, plot_trailing_performance,
 )
 from alphalytics.returns.aggregators import performance_table
+from alphalytics.returns.metrics import ann_return_common_si
 from alphalytics.returns.ratios import sharpe_ratio, sortino_ratio
+from alphalytics.returns.risk import annual_std
 
 
 @pytest.fixture
@@ -134,6 +136,39 @@ class TestRiskReturnSlope:
                 assert y / x == pytest.approx(expected)
         finally:
             plt.close(fig)
+
+    def test_geometric_matches_table_figures(self):
+        idx = pd.date_range("2015-01-31", periods=60, freq="ME")
+        rng = np.random.default_rng(7)
+        rets = pd.DataFrame(rng.normal(0.008, 0.04, (60, 2)), index=idx, columns=["S", "B"])
+        fig, ax = plot_risk_return(rets, return_method="geometric")
+        try:
+            exp_ret = ann_return_common_si(rets, periods_per_year=12)
+            exp_vol = annual_std(rets, periods_per_year=12)
+            for i, col in enumerate(rets.columns):
+                x, y = ax.collections[i].get_offsets()[0]
+                assert x == pytest.approx(exp_vol[col])
+                assert y == pytest.approx(exp_ret[col])
+                # Geometric sits below arithmetic for volatile returns.
+                assert y < rets[col].mean() * 12
+        finally:
+            plt.close(fig)
+
+    def test_geometric_uses_shared_periods(self):
+        idx = pd.date_range("2015-01-31", periods=60, freq="ME")
+        rng = np.random.default_rng(3)
+        rets = pd.DataFrame(rng.normal(0.008, 0.04, (60, 2)), index=idx, columns=["S", "B"])
+        rets.iloc[:12, 0] = np.nan  # S starts a year later
+        fig, ax = plot_risk_return(rets, return_method="geometric")
+        try:
+            x, _ = ax.collections[1].get_offsets()[0]
+            assert x == pytest.approx(annual_std(rets["B"].iloc[12:], periods_per_year=12))
+        finally:
+            plt.close(fig)
+
+    def test_unknown_return_method_raises(self, strategy_returns):
+        with pytest.raises(ValueError):
+            plot_risk_return(strategy_returns, return_method="log")
 
     def test_sortino_slope_uses_excess_over_mar(self, strategy_returns):
         mar = 0.001

@@ -15,7 +15,7 @@ from scipy import stats as _sp_stats
 from alphalytics.returns.relative import (capture_ratios, hit_rate, rolling_information_ratio,
                                           rolling_active_return,
                                           win_loss_ratio, bull_win_loss_ratio, bear_win_loss_ratio)
-from alphalytics.returns.metrics import annualized_rolling_return
+from alphalytics.returns.metrics import annualized_rolling_return, ann_return_common_si
 from alphalytics.returns.risk import ann_downside_deviation, ann_upside_deviation, annual_std, vol_of_vol
 from alphalytics.returns.capm import compute_capm
 from alphalytics.utils import _infer_periods_per_year
@@ -135,7 +135,8 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
 def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
                      periods_per_year=None, title="Risk-Return Analysis", fig_size=(3, 3), font_size=6,
                      legend_names=None, colors=None,
-                     anchor_zero: bool = True, xlim=None, ylim=None):
+                     anchor_zero: bool = True, xlim=None, ylim=None,
+                     return_method: str = "arithmetic"):
     """
     Plots a Risk-Return scatter chart for one or more return series.
 
@@ -155,14 +156,26 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
             that cluster far from zero.
         xlim: Explicit ``(low, high)`` x-axis bounds. Overrides ``anchor_zero``.
         ylim: Explicit ``(low, high)`` y-axis bounds. Overrides ``anchor_zero``.
+        return_method: How the y-axis return is annualized.
+            ``"arithmetic"`` (default): mean periodic return x periods per
+            year, each series over its own history. The slope from the origin
+            to each point is then the Sharpe ratio at a risk-free rate of zero.
+            ``"geometric"``: the compounded annualized return over the
+            periods every series shares (``ann_return_common_si``), with
+            volatility measured over those same periods. Use it when the chart
+            sits beside a performance table, so the dots match the table's
+            return and volatility figures.
 
-    The slope from the origin to each point is the Sharpe ratio at a
-    risk-free rate of zero. Volatility is the sample standard deviation
-    used by ``sharpe_ratio``, annualized by ``sqrt(periods_per_year)``.
+    Volatility is the sample standard deviation used by ``sharpe_ratio``,
+    annualized by ``sqrt(periods_per_year)``.
 
     Returns:
         The matplotlib Figure and Axes objects.
     """
+    if return_method not in ("arithmetic", "geometric"):
+        raise ValueError(
+            f"return_method must be 'arithmetic' or 'geometric', got {return_method!r}")
+
     # 1. Normalize into a DataFrame
     if isinstance(returns, pd.Series):
         df = returns.to_frame(name=returns.name or "Strategy")
@@ -184,19 +197,21 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     if colors is not None:
         colors = [colors[i % len(colors)] for i in range(n)]
 
-    # 4. Coordinates whose slope is sharpe_ratio at a zero risk-free rate.
-    # y / x = (mean * N) / (sample_std * sqrt(N)) = mean / sample_std * sqrt(N).
-    def get_metrics(series, freq):
-        ann_return = float(series.mean()) * freq
-        ann_volatility = float(annual_std(series, periods_per_year=freq))
-        return ann_volatility, ann_return
-
-    # 5. Calculate coordinates for all series
+    # 4-5. Coordinates for all series
     all_risks, all_rets = [], []
-    for col in df.columns:
-        risk, ret = get_metrics(df[col].dropna(), periods_per_year)
-        all_risks.append(risk)
-        all_rets.append(ret)
+    if return_method == "geometric":
+        # The figures a performance table reports: compounded and annualized
+        # over the shared periods, volatility over those same periods.
+        common = df.dropna()
+        all_rets = [float(v) for v in ann_return_common_si(common, periods_per_year=periods_per_year)]
+        all_risks = [float(v) for v in annual_std(common, periods_per_year=periods_per_year)]
+    else:
+        # Slope is sharpe_ratio at a zero risk-free rate:
+        # y / x = (mean * N) / (sample_std * sqrt(N)) = mean / sample_std * sqrt(N).
+        for col in df.columns:
+            series = df[col].dropna()
+            all_rets.append(float(series.mean()) * periods_per_year)
+            all_risks.append(float(annual_std(series, periods_per_year=periods_per_year)))
 
     # 6. Create the Plot
     fig, ax = plt.subplots(figsize=fig_size)

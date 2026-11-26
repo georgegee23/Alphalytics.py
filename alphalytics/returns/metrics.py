@@ -9,18 +9,18 @@ from alphalytics.utils import _infer_periods_per_year
 
 # ============== RETURNS FUNCTIONS ============== #
 
-def _covers_window(rets: pd.DataFrame, start: int) -> pd.Series:
-    """Columns whose track record spans rows ``start`` through the last row.
+def _covers_window(rets: pd.DataFrame, start: int, end: int = -1) -> pd.Series:
+    """Columns whose track record spans rows ``start`` through ``end``.
 
-    A column covers the window when it has an observation on or before the
-    window's first row and an observation on the last row. A strategy that
-    launched inside the window, or stopped reporting before it ended, does
-    not cover it: compounding its shorter history would understate a
-    multi-year return once annualized over the full window. A gap strictly
-    inside the window is still skipped.
+    ``end`` defaults to the last row. A column covers the window when it has
+    an observation on or before the window's first row and an observation on
+    its last row. A strategy that launched inside the window, or stopped
+    reporting before it ended, does not cover it: compounding its shorter
+    history would understate a multi-year return once annualized over the
+    full window. A gap strictly inside the window is still skipped.
     """
     started = rets.iloc[: start + 1].notna().any()
-    current = rets.iloc[-1].notna()
+    current = rets.iloc[end].notna()
     return started & current
 
 
@@ -64,6 +64,80 @@ def return_ytd(rets: pd.DataFrame) -> pd.Series:
     ytd_rets = ytd_rets.where(_covers_window(rets, int(np.argmax(in_year))), np.nan)
     ytd_rets.name = "YTD"
     return ytd_rets
+
+# Weekends and holidays move the first and last trading days of a year by up
+# to three days, so sub-monthly data gets that much slack at the year's edges.
+_EDGE_SLACK_DAYS = 3
+
+
+def _starts_year(date: pd.Timestamp, periods_per_year: int) -> bool:
+    """Whether ``date`` falls in the first period of its calendar year."""
+    if periods_per_year <= 12:
+        return date.month <= 12 // periods_per_year
+    return date.dayofyear <= 365.25 / periods_per_year + _EDGE_SLACK_DAYS
+
+
+def _ends_year(date: pd.Timestamp, periods_per_year: int) -> bool:
+    """Whether ``date`` falls in the last period of its calendar year."""
+    if periods_per_year <= 12:
+        return date.month > 12 - 12 // periods_per_year
+    days_left = (date.replace(month=12, day=31).normalize() - date.normalize()).days
+    return days_left <= 365.25 / periods_per_year + _EDGE_SLACK_DAYS
+
+
+def calendar_returns(rets: Union[pd.Series, pd.DataFrame], periods_per_year: int = None,
+                     ytd_label: Optional[str] = None) -> Union[pd.Series, pd.DataFrame]:
+    """
+    Compounded return for each calendar year.
+
+    A year is reported only when the data begin by its first period, so a
+    first year that starts part-way through is left out, even when it is
+    also the final year. The final year is reported year-to-date when the
+    data end before its last period; that value equals `return_ytd`.
+
+    Each column follows the same coverage rule as the trailing returns (see
+    `_covers_window`): it needs an observation on or before the year's first
+    row and on its last row, or that year is NaN for it -- it launched during
+    the year, or stopped reporting before the year ended. A gap strictly
+    inside a year is skipped.
+
+    Args:
+        rets: Periodic returns (Series or DataFrame) with a sorted DatetimeIndex.
+        periods_per_year: Used only to recognize the first and last period of
+            a year. Inferred from the index when omitted.
+        ytd_label: If given, an incomplete final year is labelled with this
+            string (e.g. "YTD") instead of its year number.
+
+    Returns:
+        Series (Series input) or DataFrame (DataFrame input) indexed by
+        calendar year, oldest first. The index is named "Year".
+    """
+    frame = rets.to_frame() if isinstance(rets, pd.Series) else rets
+
+    rows = {}
+    if not frame.empty:
+        if periods_per_year is None:
+            periods_per_year = _infer_periods_per_year(frame.index)
+        years = frame.index.year
+        for year in pd.unique(years):
+            pos = np.flatnonzero(years == year)
+            start, end = int(pos[0]), int(pos[-1])
+            if start == 0 and not _starts_year(frame.index[0], periods_per_year):
+                continue  # the data begin part-way through this year
+            ret = (frame.iloc[start:end + 1] + 1).prod() - 1
+            rows[year] = ret.where(_covers_window(frame, start, end), np.nan)
+
+    out = pd.DataFrame(list(rows.values()), index=list(rows.keys()),
+                       columns=frame.columns, dtype=float)
+    if (ytd_label is not None and len(out)
+            and out.index[-1] == frame.index[-1].year
+            and not _ends_year(frame.index[-1], periods_per_year)):
+        out.index = list(out.index[:-1]) + [ytd_label]
+    out.index.name = "Year"
+
+    if isinstance(rets, pd.Series):
+        return out.iloc[:, 0].rename(rets.name)
+    return out
 
 def ann_return(rets: pd.DataFrame, years: int = 3, periods_per_year: int = None) -> pd.Series:
     """
@@ -255,3 +329,29 @@ def annualized_rolling_return(returns: Union[pd.Series, pd.DataFrame], window: i
     annualization_factor = periods_per_year / window
 
     return (1 + rolling_cumulative) ** annualization_factor - 1
+
+
+def average_gain(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Series]:
+    """
+    Mean of the positive periodic returns -- the typical winning period.
+
+    Zero returns and gaps (NaN) are in neither `average_gain` nor
+    `average_loss`. NaN when there is no positive period.
+
+    Returns:
+        float (Series input) or pd.Series (DataFrame input).
+    """
+    return returns.where(returns > 0).mean()
+
+
+def average_loss(returns: Union[pd.Series, pd.DataFrame]) -> Union[float, pd.Series]:
+    """
+    Mean of the negative periodic returns -- the typical losing period.
+
+    The result is negative. Zero returns and gaps (NaN) are excluded. NaN when
+    there is no negative period.
+
+    Returns:
+        float (Series input) or pd.Series (DataFrame input).
+    """
+    return returns.where(returns < 0).mean()

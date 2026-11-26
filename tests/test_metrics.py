@@ -10,8 +10,11 @@ from alphalytics.returns.metrics import (
     ann_return,
     ann_return_common_si,
     compounded_ann_return,
+    calendar_returns,
     cumgrowth,
     annualized_rolling_return,
+    average_gain,
+    average_loss,
 )
 
 
@@ -137,6 +140,125 @@ class TestCompoundedAnnReturn:
     def test_alternating_monthly(self, alternating_monthly_returns):
         result = compounded_ann_return(alternating_monthly_returns, periods_per_year=12)
         assert result == pytest.approx((1.08 ** 6) - 1)
+
+
+class TestCalendarReturns:
+    @staticmethod
+    def _monthly(start, periods, value=0.01):
+        idx = pd.date_range(start, periods=periods, freq="ME")
+        return pd.DataFrame({"A": np.full(periods, value)}, index=idx)
+
+    def test_full_years(self):
+        result = calendar_returns(self._monthly("2020-01-31", 24), periods_per_year=12)
+        assert list(result.index) == [2020, 2021]
+        assert result["A"].tolist() == pytest.approx([1.01 ** 12 - 1] * 2)
+        assert result.index.name == "Year"
+
+    def test_partial_first_year_is_left_out(self):
+        result = calendar_returns(self._monthly("2019-03-31", 22), periods_per_year=12)
+        assert list(result.index) == [2020]
+
+    def test_partial_first_year_that_is_also_final_is_left_out(self):
+        result = calendar_returns(self._monthly("2021-03-31", 6), periods_per_year=12)
+        assert result.empty
+
+    def test_partial_final_year_is_ytd(self):
+        frame = self._monthly("2020-01-31", 18)  # ends Jun 2021
+        result = calendar_returns(frame, periods_per_year=12)
+        assert list(result.index) == [2020, 2021]
+        assert result.loc[2021, "A"] == pytest.approx(1.01 ** 6 - 1)
+        assert result.loc[2021, "A"] == pytest.approx(return_ytd(frame)["A"])
+
+    def test_ytd_label(self):
+        result = calendar_returns(self._monthly("2020-01-31", 18), periods_per_year=12,
+                                  ytd_label="YTD")
+        assert list(result.index) == [2020, "YTD"]
+
+    def test_ytd_label_unused_when_final_year_is_complete(self):
+        result = calendar_returns(self._monthly("2020-01-31", 24), periods_per_year=12,
+                                  ytd_label="YTD")
+        assert list(result.index) == [2020, 2021]
+
+    def test_late_launch_is_nan_in_launch_year(self):
+        frame = self._monthly("2019-01-31", 36)
+        frame["B"] = np.nan
+        frame.loc["2020-03-31":, "B"] = 0.02
+        result = calendar_returns(frame, periods_per_year=12)
+        assert np.isnan(result.loc[2020, "B"])
+        assert result.loc[2021, "B"] == pytest.approx(1.02 ** 12 - 1)
+        assert result.loc[2020, "A"] == pytest.approx(1.01 ** 12 - 1)
+
+    def test_stale_column_is_nan_in_unfinished_year(self):
+        frame = self._monthly("2019-01-31", 36)
+        frame["B"] = 0.01
+        frame.loc["2021-10-31":, "B"] = np.nan  # stopped reporting in 2021
+        result = calendar_returns(frame, periods_per_year=12)
+        assert np.isnan(result.loc[2021, "B"])
+        assert result.loc[2020, "B"] == pytest.approx(1.01 ** 12 - 1)
+
+    def test_internal_gap_is_skipped(self):
+        frame = self._monthly("2020-01-31", 12)
+        frame.iloc[5, 0] = np.nan
+        result = calendar_returns(frame, periods_per_year=12)
+        assert result.loc[2020, "A"] == pytest.approx(1.01 ** 11 - 1)
+
+    def test_series_in_series_out(self):
+        series = self._monthly("2020-01-31", 24)["A"]
+        result = calendar_returns(series, periods_per_year=12)
+        assert isinstance(result, pd.Series)
+        assert result.name == "A"
+        assert len(result) == 2
+
+    def test_infers_monthly_frequency(self):
+        frame = self._monthly("2019-03-31", 30)
+        assert calendar_returns(frame).equals(calendar_returns(frame, periods_per_year=12))
+
+    def test_quarterly(self):
+        idx = pd.date_range("2020-03-31", periods=8, freq="QE")
+        frame = pd.DataFrame({"A": 0.02}, index=idx)
+        result = calendar_returns(frame)
+        assert list(result.index) == [2020, 2021]
+        assert result["A"].tolist() == pytest.approx([1.02 ** 4 - 1] * 2)
+
+    def test_daily_year_edges(self):
+        # 2021 opens on a Monday, Jan 4 (Jan 1 holiday, then a weekend): still a full year.
+        idx = pd.bdate_range("2021-01-04", "2022-06-30")
+        frame = pd.DataFrame({"A": 0.001}, index=idx)
+        result = calendar_returns(frame, ytd_label="YTD")
+        assert list(result.index) == [2021, "YTD"]
+        n_2021 = int((idx.year == 2021).sum())
+        assert result.loc[2021, "A"] == pytest.approx(1.001 ** n_2021 - 1)
+
+    def test_daily_mid_january_start_is_partial(self):
+        idx = pd.bdate_range("2021-01-15", "2022-12-30")
+        frame = pd.DataFrame({"A": 0.001}, index=idx)
+        assert list(calendar_returns(frame).index) == [2022]
+
+    def test_empty(self, monthly_index):
+        empty = pd.DataFrame(index=monthly_index[:0], columns=["A"], dtype=float)
+        result = calendar_returns(empty)
+        assert result.empty
+        assert list(result.columns) == ["A"]
+
+
+class TestAverageGainLoss:
+    def test_series(self):
+        r = pd.Series([0.02, -0.01, 0.04, -0.03, 0.0])
+        assert average_gain(r) == pytest.approx(0.03)
+        assert average_loss(r) == pytest.approx(-0.02)
+
+    def test_zero_and_nan_are_excluded(self):
+        r = pd.Series([0.02, 0.0, np.nan, -0.04])
+        assert average_gain(r) == pytest.approx(0.02)
+        assert average_loss(r) == pytest.approx(-0.04)
+
+    def test_no_losses_is_nan(self):
+        assert np.isnan(average_loss(pd.Series([0.01, 0.02])))
+
+    def test_dataframe_per_column(self):
+        df = pd.DataFrame({"A": [0.01, -0.02, 0.03], "B": [-0.01, -0.03, 0.05]})
+        assert average_gain(df).tolist() == pytest.approx([0.02, 0.05])
+        assert average_loss(df).tolist() == pytest.approx([-0.02, -0.02])
 
 
 class TestCumgrowth:

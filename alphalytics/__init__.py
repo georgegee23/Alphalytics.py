@@ -11,7 +11,7 @@ finally:
 from .returns import (
 
     return_n, return_ytd, ann_return, ann_return_common_si, performance_table,
-    cumgrowth,
+    calendar_returns, cumgrowth, average_gain, average_loss,
 
     annual_std, rolling_volatility, vol_of_vol,
     downside_variance, ann_downside_deviation,
@@ -70,7 +70,7 @@ from .utils import detect_extreme_outliers, detect_internal_nan, fill_first_nan
 __all__ = [
     # returns.metrics
     "return_n", "return_ytd", "ann_return", "ann_return_common_si", "performance_table",
-    "cumgrowth",
+    "calendar_returns", "cumgrowth", "average_gain", "average_loss",
     # returns.risk
     "annual_std", "rolling_volatility", "vol_of_vol",
     "downside_variance", "ann_downside_deviation",
