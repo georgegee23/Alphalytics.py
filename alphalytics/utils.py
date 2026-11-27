@@ -146,12 +146,24 @@ def fill_first_nan(series: pd.Series, value: float = 1.0) -> pd.Series:
     return result
 
 
+# Seven-day data has each weekend day on 1/7 (14%) of its dates. A trading-day
+# series with a few stray weekend prints stays far below this.
+_SEVEN_DAY_WEEKEND_SHARE = 0.10
+
+
 def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
     """Infer the number of periods per year from a DatetimeIndex.
 
     Recognized median gaps are daily (252), weekly (52), biweekly (26),
     monthly (12), quarterly (4), and annual (1). Anything else raises,
     including sub-daily data and an index shorter than two dates.
+
+    Daily data that trades seven days a week (crypto, calendar-day NAVs)
+    has the same one-day median gap as trading-day data, so it is told
+    apart by its weekend dates: when Saturdays and Sundays each make up at
+    least a tenth of the dates, it is 365 periods per year. A Sunday-to-
+    Thursday or Monday-to-Saturday market has only one of the two weekend
+    days and stays at 252.
 
     Args:
         index: The datetime index to analyze.
@@ -203,6 +215,11 @@ def _infer_periods_per_year(index: pd.DatetimeIndex) -> int:
             f"({median_days:g} days). Pass periods_per_year explicitly."
         )
     if median_days <= 3:
+        weekday = index.dayofweek
+        saturdays = float(np.mean(weekday == 5))
+        sundays = float(np.mean(weekday == 6))
+        if min(saturdays, sundays) >= _SEVEN_DAY_WEEKEND_SHARE:
+            return 365
         return 252
     if 6 <= median_days <= 8:
         return 52

@@ -59,7 +59,8 @@ def plot_growth(returns: pd.DataFrame, initial_value: int = 100,
     return fig, ax
 
 
-def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = None):
+def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, periods_per_year: int = None,
+                                annualize: str = "periods", start=None):
     """Growth chart, cumulative-return bars, and a trailing performance table.
 
     Args:
@@ -67,6 +68,9 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
         title: Optional figure title.
         periods_per_year: Sampling frequency (12 monthly, 52 weekly, 252
             daily). Inferred from the index when None.
+        annualize: ``"periods"`` (default) or ``"calendar"``, passed to
+            `performance_table` for the table.
+        start: Calendar method only: base date for the SI column.
 
     Returns:
         The matplotlib Figure and a tuple of the three Axes.
@@ -97,7 +101,7 @@ def plot_cumulative_performance(returns: pd.DataFrame, title: str = None, period
     plt.xticks(rotation=0, ha='center')
 
     # --- Plot 3: Performance Table ---
-    perf_table= performance_table(returns, periods_per_year)
+    perf_table = performance_table(returns, periods_per_year, annualize=annualize, start=start)
 
     # Format table data as percentages. A window longer than a series'
     # track record is NaN.
@@ -136,7 +140,8 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
                      periods_per_year=None, title="Risk-Return Analysis", fig_size=(3, 3), font_size=6,
                      legend_names=None, colors=None,
                      anchor_zero: bool = True, xlim=None, ylim=None,
-                     return_method: str = "arithmetic"):
+                     return_method: str = "arithmetic",
+                     annualize: str = "periods", start=None):
     """
     Plots a Risk-Return scatter chart for one or more return series.
 
@@ -165,9 +170,13 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
             volatility measured over those same periods. Use it when the chart
             sits beside a performance table, so the dots match the table's
             return and volatility figures.
+        annualize: Geometric return only: ``"periods"`` (default) or
+            ``"calendar"``, passed to ``ann_return_common_si``. Match the
+            table's setting so the dots agree with its SI column.
+        start: Calendar method only: base date of the common period.
 
     Volatility is the sample standard deviation used by ``sharpe_ratio``,
-    annualized by ``sqrt(periods_per_year)``.
+    annualized by ``sqrt(periods_per_year)`` in every mode.
 
     Returns:
         The matplotlib Figure and Axes objects.
@@ -175,6 +184,8 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     if return_method not in ("arithmetic", "geometric"):
         raise ValueError(
             f"return_method must be 'arithmetic' or 'geometric', got {return_method!r}")
+    if annualize != "periods" and return_method != "geometric":
+        raise ValueError("annualize only applies to return_method='geometric'.")
 
     # 1. Normalize into a DataFrame
     if isinstance(returns, pd.Series):
@@ -202,8 +213,11 @@ def plot_risk_return(returns: Union[pd.Series, pd.DataFrame],
     if return_method == "geometric":
         # The figures a performance table reports: compounded and annualized
         # over the shared periods, volatility over those same periods.
+        # Pass the full frame: in calendar mode the row before the common
+        # period is its base date, and dropping rows first would lose it.
         common = df.dropna()
-        all_rets = [float(v) for v in ann_return_common_si(common, periods_per_year=periods_per_year)]
+        all_rets = [float(v) for v in ann_return_common_si(
+            df, periods_per_year=periods_per_year, annualize=annualize, start=start)]
         all_risks = [float(v) for v in annual_std(common, periods_per_year=periods_per_year)]
     else:
         # Slope is sharpe_ratio at a zero risk-free rate:
@@ -1678,13 +1692,17 @@ def plot_rolling_return(strategy_returns: Union[pd.Series, pd.DataFrame],
 
 def plot_trailing_performance(returns: pd.DataFrame, periods_per_year: int = None,
     figsize: tuple = (8, 4), title: str = 'Trailing Performance',
-    fontsize: int = 9) -> Tuple[plt.Figure, plt.Axes]:
+    fontsize: int = 9, annualize: str = "periods", start=None) -> Tuple[plt.Figure, plt.Axes]:
     """Grouped bar chart of trailing returns (YTD, 1Y, 3Y, 5Y, CI) per strategy.
 
     Args:
         returns: Periodic returns of the strategies (DataFrame, one column per strategy).
         periods_per_year: Annualization factor (12 for monthly, 252 for daily).
             Inferred from the index when None.
+        annualize: ``"periods"`` (default) or ``"calendar"``, passed to
+            `performance_table`.
+        start: Calendar method only: base date for the CI (common
+            inception) bars.
         figsize: Figure dimensions (width, height) in inches.
         title: Chart title.
         fontsize: Base font size for labels and annotations.
@@ -1697,7 +1715,8 @@ def plot_trailing_performance(returns: pd.DataFrame, periods_per_year: int = Non
     if isinstance(returns, pd.Series):
         returns = returns.to_frame(name=returns.name or "Strategy")
 
-    perf = performance_table(returns, periods_per_year=periods_per_year)
+    perf = performance_table(returns, periods_per_year=periods_per_year,
+                             annualize=annualize, start=start)
 
     period_map = {"YTD": "YTD", "1 Year": "1-Year", "3 Year": "3-Year",
                   "5 Year": "5-Year", "SI": "CI"}

@@ -47,6 +47,47 @@ def test_late_launch_is_blank_beyond_its_track_record():
     assert table.loc["OLD", "10 Year"] == pytest.approx((1.01 ** 12) - 1)
 
 
+class TestPerformanceTableCalendar:
+    @staticmethod
+    def _daily():
+        idx = pd.bdate_range("2015-01-01", "2024-12-31")
+        return pd.DataFrame({"A": 0.0004, "B": 0.0002}, index=idx)
+
+    def test_columns_and_windows(self):
+        rets = self._daily()
+        table = performance_table(rets, annualize="calendar", start="2014-12-31")
+        assert list(table.columns) == ["1M", "3M", "YTD", "1 Year", "3 Year", "5 Year", "10 Year", "SI"]
+        dec = int(((rets.index.year == 2024) & (rets.index.month == 12)).sum())
+        assert table.loc["A", "1M"] == pytest.approx(1.0004 ** dec - 1)
+        n_2024 = int((rets.index.year == 2024).sum())
+        assert table.loc["A", "1 Year"] == pytest.approx(1.0004 ** n_2024 - 1)
+        days = (rets.index[-1] - pd.Timestamp("2014-12-31")).days
+        assert table.loc["A", "SI"] == pytest.approx(1.0004 ** (len(rets) * 365.25 / days) - 1)
+
+    def test_calendar_si_without_base_date_raises(self):
+        with pytest.raises(ValueError, match="start="):
+            performance_table(self._daily(), annualize="calendar")
+
+    def test_short_history_blanks_si(self):
+        rets = self._daily().iloc[-200:]
+        table = performance_table(rets, annualize="calendar", start="2024-03-01")
+        assert table["SI"].isna().all()
+        assert table["1 Year"].isna().all()
+
+    def test_quarterly_has_no_one_month(self):
+        idx = pd.date_range("2015-03-31", periods=40, freq="QE")
+        rets = pd.DataFrame({"A": 0.02}, index=idx)
+        table = performance_table(rets, annualize="calendar", start="2014-12-31")
+        assert np.isnan(table.loc["A", "1M"])
+        assert table.loc["A", "3M"] == pytest.approx(0.02)
+
+    def test_invalid_arguments(self):
+        with pytest.raises(ValueError, match="annualize"):
+            performance_table(self._daily(), annualize="actual")
+        with pytest.raises(ValueError, match="calendar"):
+            performance_table(self._daily(), start="2014-12-31")
+
+
 def test_negative_down_capture_has_no_overall_capture():
     idx = pd.date_range("2020-01-31", periods=24, freq="ME")
     bench = pd.Series([0.03, -0.02] * 12, index=idx, name="Bench")

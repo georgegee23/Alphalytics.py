@@ -125,6 +125,34 @@ class TestFrequencyDefaults:
         finally:
             plt.close(fig)
 
+    def test_trailing_performance_calendar(self):
+        idx = pd.bdate_range("2020-01-01", "2022-12-30")
+        rng = np.random.default_rng(8)
+        rets = pd.DataFrame(rng.normal(0.0004, 0.01, (len(idx), 2)), index=idx, columns=["S", "B"])
+        start = "2019-12-31"
+        fig, ax = plot_trailing_performance(rets, annualize="calendar", start=start)
+        try:
+            expected = performance_table(rets, annualize="calendar", start=start)
+            n_periods = len(ax.get_xticks())
+            ci_col = [t.get_text() for t in ax.get_xticklabels()].index("CI")
+            heights = [ax.patches[i * n_periods + ci_col].get_height()
+                for i in range(len(rets.columns))]
+            assert heights == pytest.approx(expected["SI"].to_list())
+        finally:
+            plt.close(fig)
+
+    def test_cumulative_performance_calendar(self):
+        idx = pd.date_range("2014-12-31", periods=73, freq="ME")
+        rets = pd.DataFrame({"A": np.linspace(0.0, 0.02, len(idx))}, index=idx)
+        rets.iloc[0] = np.nan
+        fig, axes = plot_cumulative_performance(rets, annualize="calendar")
+        try:
+            cells = axes[2].tables[0].get_celld()
+            expected = performance_table(rets, annualize="calendar")
+            assert cells[(1, 8)].get_text().get_text() == f"{expected.loc['A', 'SI']:.2%}"
+        finally:
+            plt.close(fig)
+
 
 class TestRiskReturnSlope:
     def test_slope_matches_sharpe(self, strategy_returns):
@@ -169,6 +197,24 @@ class TestRiskReturnSlope:
     def test_unknown_return_method_raises(self, strategy_returns):
         with pytest.raises(ValueError):
             plot_risk_return(strategy_returns, return_method="log")
+
+    def test_geometric_calendar_keeps_base_row(self):
+        idx = pd.date_range("2014-12-31", periods=61, freq="ME")
+        rng = np.random.default_rng(5)
+        rets = pd.DataFrame(rng.normal(0.008, 0.04, (61, 2)), index=idx, columns=["S", "B"])
+        rets.iloc[0] = np.nan  # base-date row
+        fig, ax = plot_risk_return(rets, return_method="geometric", annualize="calendar")
+        try:
+            exp_ret = ann_return_common_si(rets, annualize="calendar")
+            for i, col in enumerate(rets.columns):
+                _, y = ax.collections[i].get_offsets()[0]
+                assert y == pytest.approx(exp_ret[col])
+        finally:
+            plt.close(fig)
+
+    def test_calendar_needs_geometric(self, strategy_returns):
+        with pytest.raises(ValueError, match="geometric"):
+            plot_risk_return(strategy_returns, annualize="calendar")
 
     def test_sortino_slope_uses_excess_over_mar(self, strategy_returns):
         mar = 0.001

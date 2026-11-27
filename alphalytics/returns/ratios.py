@@ -1,9 +1,9 @@
 
 import pandas as pd
 import numpy as np
-from typing import Union
+from typing import Literal, Union
 
-from .metrics import compounded_ann_return
+from .metrics import DateLike, compounded_ann_return, _check_annualize
 from .risk import downside_variance, upside_variance, max_drawdown, ulcer_index, cvar
 from .relative import omega_ratio
 from .capm import beta
@@ -164,26 +164,29 @@ def sortino_ratio(returns: Union[pd.Series, pd.DataFrame], mar: float = 0.0,
 # ==========================================
 
 def calmar_ratio(returns: Union[pd.Series, pd.DataFrame],
-    periods_per_year: int = None) -> Union[float, pd.Series]:
+    periods_per_year: int | float | None = None,
+    annualize: Literal["periods", "calendar"] = "periods",
+    start: DateLike | None = None) -> Union[float, pd.Series]:
 
     """
     Calmar ratio — compounded annual return divided by the absolute maximum drawdown.
 
-    The numerator is `compounded_ann_return`, the compounded growth of the
-    sample raised to ``periods_per_year / n``.
+    The numerator is `compounded_ann_return`: the compounded growth of the
+    sample raised to ``periods_per_year / n``, or with
+    ``annualize="calendar"`` to ``365.25 / days`` of elapsed time.
 
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         periods_per_year: Annualisation factor (inferred from index if None).
+            Ignored for ``"calendar"``.
+        annualize: ``"periods"`` (default) or ``"calendar"``.
+        start: Calendar method only: see `compounded_ann_return`.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
     """
-
-    if periods_per_year is None:
-        periods_per_year = _infer_periods_per_year(returns.index)
-
-    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
+    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year,
+        annualize=annualize, start=start)
     mdd = np.abs(max_drawdown(returns))
 
     if isinstance(mdd, pd.Series):
@@ -199,7 +202,9 @@ def calmar_ratio(returns: Union[pd.Series, pd.DataFrame],
 # ==========================================
 
 def martin_ratio(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
-    periods_per_year: int = None) -> Union[float, pd.Series]:
+    periods_per_year: int | float | None = None,
+    annualize: Literal["periods", "calendar"] = "periods",
+    start: DateLike | None = None) -> Union[float, pd.Series]:
     """
     Martin Ratio (a.k.a. Ulcer Performance Index) — annualised excess return
     per unit of Ulcer Index.
@@ -213,21 +218,32 @@ def martin_ratio(returns: Union[pd.Series, pd.DataFrame], rfr: float = 0.0,
     only, Martin penalises the full drawdown trajectory (depth × duration).
     The strategy return is the compounded sample return from
     `compounded_ann_return`, matching `calmar_ratio`. A constant per-period
-    ``rfr`` is compounded as ``(1 + rfr) ** periods_per_year - 1``.
+    ``rfr`` is compounded as ``(1 + rfr) ** periods_per_year - 1``. With
+    ``annualize="calendar"`` both are annualized over elapsed time: ``rfr``
+    is compounded over the same returns and days as each column.
+
     Args:
         returns: A pandas Series or DataFrame of periodic returns.
         rfr: Risk-free rate per period. Defaults to 0.0.
         periods_per_year: Annualisation factor (inferred from index if None).
+            Ignored for ``"calendar"``.
+        annualize: ``"periods"`` (default) or ``"calendar"``.
+        start: Calendar method only: see `compounded_ann_return`.
 
     Returns:
         A float (Series input) or pd.Series (DataFrame input).
         NaN where the Ulcer Index is zero (no drawdowns) or undefined.
     """
-    if periods_per_year is None:
-        periods_per_year = _infer_periods_per_year(returns.index)
-
-    ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
-    ann_rfr = (1 + rfr) ** periods_per_year - 1
+    if annualize == "calendar":
+        ann_ret = compounded_ann_return(returns, annualize="calendar", start=start)
+        # The risk-free rate earned on the same dates as each column.
+        ann_rfr = compounded_ann_return(returns * 0 + rfr, annualize="calendar", start=start)
+    else:
+        _check_annualize(annualize, start)
+        if periods_per_year is None:
+            periods_per_year = _infer_periods_per_year(returns.index)
+        ann_ret = compounded_ann_return(returns, periods_per_year=periods_per_year)
+        ann_rfr = (1 + rfr) ** periods_per_year - 1
     ui = ulcer_index(returns)
 
     if isinstance(ui, pd.Series):

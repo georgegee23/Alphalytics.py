@@ -16,6 +16,31 @@ from alphalytics.returns.ratios import (
 from alphalytics.returns.relative import omega_ratio
 
 
+class TestCalendarRatios:
+    @staticmethod
+    def _with_base_row():
+        idx = pd.date_range("2020-12-31", periods=25, freq="ME")
+        rets = pd.Series([np.nan] + [0.03, -0.01] * 12, index=idx, name="A")
+        return rets
+
+    def test_calmar_uses_calendar_return(self):
+        rets = self._with_base_row()
+        expected = compounded_ann_return(rets, annualize="calendar") / abs(max_drawdown(rets))
+        assert calmar_ratio(rets, annualize="calendar") == pytest.approx(expected)
+
+    def test_martin_annualizes_rfr_over_the_same_days(self):
+        rets = self._with_base_row()
+        rfr = 0.002
+        exponent = 24 * 365.25 / 730
+        expected = (compounded_ann_return(rets, annualize="calendar")
+                    - ((1 + rfr) ** exponent - 1)) / ulcer_index(rets)
+        assert martin_ratio(rets, rfr=rfr, annualize="calendar") == pytest.approx(expected)
+
+    def test_martin_start_with_periods_raises(self):
+        with pytest.raises(ValueError, match="calendar"):
+            martin_ratio(self._with_base_row(), start="2020-12-31")
+
+
 class TestSharpeRatio:
     def test_basic(self, returns_df):
         result = sharpe_ratio(returns_df, periods_per_year=12)

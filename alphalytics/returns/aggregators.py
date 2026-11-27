@@ -1,4 +1,6 @@
 
+from typing import Literal
+
 import pandas as pd
 import numpy as np
 
@@ -27,10 +29,13 @@ from alphalytics.utils import _infer_periods_per_year
 
 from .metrics import (
     return_n, return_ytd, ann_return, ann_return_common_si,
+    DateLike, InsufficientHistoryError, _calendar_trailing_return, _check_annualize,
 )
 
 
-def performance_table(rets: pd.DataFrame, periods_per_year: int = None) -> pd.DataFrame:
+def performance_table(rets: pd.DataFrame, periods_per_year: int | float | None = None,
+    annualize: Literal["periods", "calendar"] = "periods",
+    start: DateLike | None = None) -> pd.DataFrame:
     """Builds a standard institutional performance table (1M, 3M, YTD, 1Y, 3Y, 5Y, 10Y, SI).
 
     Trailing windows are the last periods of the shared calendar. A missing
@@ -41,16 +46,41 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = None) -> pd.Da
     window is skipped. Common SI is the only column that requires every
     strategy to be present on every date.
 
+    ``annualize`` picks one convention for every column:
+
+    - ``"periods"`` (default): 1M and 3M are the last ``P/12`` and ``P/4``
+      rows, the year columns the last ``k * P`` rows, and SI is annualized
+      over ``n / P`` years.
+    - ``"calendar"``: every window is an exact calendar span ending on the
+      last date (see `ann_return`), and SI is annualized over elapsed days
+      (see `ann_return_common_si`). A window whose start the data do not
+      reach is NaN. Nothing is inferred from the index, so daily data with
+      any number of sessions per year, and irregular dates, are handled.
+
+    YTD is the calendar year in both methods.
+
     Args:
         rets: Periodic returns of the strategies.
         periods_per_year: Frequency of the data (12 for monthly, 252 for daily).
-            Inferred from the index if None.
+            Inferred from the index if None. Ignored for ``"calendar"``.
+        annualize: ``"periods"`` (default) or ``"calendar"``.
+        start: Calendar method only: the base date of the common period for
+            SI (see `ann_return_common_si`).
 
     Returns:
         A table where rows are strategies and columns are trailing timeframes.
+
+    Raises:
+        ValueError: No returns; an invalid ``annualize`` or ``start``; or, for
+            calendar SI, no ``start`` and no index date before the common
+            period. A common period shorter than a year leaves SI NaN.
     """
+    _check_annualize(annualize, start)
     if rets.dropna(how="all").empty:
         raise ValueError("No returns to tabulate.")
+
+    if annualize == "calendar":
+        return _performance_table_calendar(rets, start)
 
     if periods_per_year is None:
         periods_per_year = _infer_periods_per_year(rets.index)
@@ -76,13 +106,28 @@ def performance_table(rets: pd.DataFrame, periods_per_year: int = None) -> pd.Da
     # Common SI is the overlap. A history shorter than a year stays blank.
     try:
         si = ann_return_common_si(rets, periods_per_year=periods_per_year)
-    except ValueError:
+    except InsufficientHistoryError:
         si = pd.Series(np.nan, index=rets.columns, name="SI")
 
     # 4. Concatenate into a single presentation DataFrame
     perf_table = pd.concat([m1, m3, ytd, yr1, yr3, yr5, yr10, si], axis=1)
 
     return perf_table
+
+
+def _performance_table_calendar(rets: pd.DataFrame, start) -> pd.DataFrame:
+    """`performance_table` with every window on calendar time."""
+    m1 = _calendar_trailing_return(rets, 1).rename("1M")
+    m3 = _calendar_trailing_return(rets, 3).rename("3M")
+    ytd = return_ytd(rets)
+    years = [ann_return(rets, years=k, annualize="calendar") for k in (1, 3, 5, 10)]
+
+    try:
+        si = ann_return_common_si(rets, annualize="calendar", start=start)
+    except InsufficientHistoryError:
+        si = pd.Series(np.nan, index=rets.columns, name="SI")
+
+    return pd.concat([m1, m3, ytd, *years, si], axis=1)
 
 # ==========================================
 # EVALUATE INVESTMENTS CONSISTENCY
